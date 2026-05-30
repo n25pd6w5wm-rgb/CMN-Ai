@@ -1,0 +1,6 @@
+# Raspberry Pi profile. Constrained hardware: use the smaller local model and keep
+# the database on the Pi's home directory.
+
+agents:
+  local:
+    model: "gemma4:latest"

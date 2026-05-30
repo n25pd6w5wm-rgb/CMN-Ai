@@ -1,0 +1,50 @@
+# Base configuration shared by all profiles. Profile files (mac.yaml, pi.yaml)
+# are deep-merged on top of this. API keys are referenced by env-var name only.
+
+ollama_host: "http://localhost:11434"
+
+budget:
+  monthly_budget_eur: 35.0
+  bucket_split:
+    general: 0.6
+    coding: 0.4
+  on_limit: block
+
+router:
+  strategy: rule
+  optimizer_model: "gemma4:latest"
+  synthesize: false
+
+storage:
+  db_path: "~/.cmn-ai/cmn.db"
+
+agents:
+  local:
+    enabled: true
+    model: "gemma4:latest"
+    bucket: general
+  anthropic:
+    enabled: false
+    model: "claude-sonnet-4-6"
+    bucket: general
+    api_key_env: "ANTHROPIC_API_KEY"
+  coding:
+    enabled: false
+    model: "claude-sonnet-4-6"
+    bucket: coding
+    api_key_env: "ANTHROPIC_API_KEY"
+  openai:
+    enabled: false
+    model: "gpt-4o"
+    bucket: general
+    api_key_env: "OPENAI_API_KEY"
+  gemini:
+    enabled: false
+    model: "gemini-1.5-pro"
+    bucket: general
+    api_key_env: "GEMINI_API_KEY"
+  perplexity:
+    enabled: false
+    model: "sonar-pro"
+    bucket: general
+    api_key_env: "PERPLEXITY_API_KEY"

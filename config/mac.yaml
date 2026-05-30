@@ -1,0 +1,6 @@
+# macOS development profile. Gemma runs locally via Ollama; the larger gemma4:31b
+# model is available here as the local heavy-lift option.
+
+agents:
+  local:
+    model: "gemma4:31b"
