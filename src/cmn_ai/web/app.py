@@ -180,9 +180,12 @@ def build_state_from_settings(settings: Settings | None = None) -> AppState:
     """Wire real agents, router, governor and orchestrator from configuration."""
     from cmn_ai.agents.factory import build_agents
     from cmn_ai.budget.ledger import Ledger
+    from cmn_ai.keystore import bootstrap_secrets
     from cmn_ai.router.rule_router import RuleRouter
 
     settings = settings or load_settings()
+    # Pull model API keys from Supabase (creds via local .env) and enable keyed agents.
+    bootstrap_secrets(settings)
     db_path = settings.storage.resolved_path
     agents = build_agents(settings)
     governor = BudgetGovernor(settings=settings.budget, ledger=Ledger(db_path))
