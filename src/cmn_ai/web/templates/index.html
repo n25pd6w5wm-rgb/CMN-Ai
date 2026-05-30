@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>cmn·ai — the conductor</title>
+    <link rel="icon" href="data:," />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600;9..144,900&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/chat.css" />
+  </head>
+  <body>
+    <div class="grain" aria-hidden="true"></div>
+    <div class="layout">
+      <aside class="rail">
+        <header class="brand">
+          <div class="brand-mark">cmn<span>·</span>ai</div>
+          <p class="brand-sub">the conductor</p>
+        </header>
+
+        <section class="panel" id="budget-panel">
+          <h2 class="panel-title">Weekly budget</h2>
+          <div class="budget-head">
+            <span class="budget-monthly" id="budget-monthly">— €/mo</span>
+            <button class="ghost-btn" id="raise-btn">raise</button>
+          </div>
+          <div id="buckets"></div>
+        </section>
+
+        <section class="panel">
+          <h2 class="panel-title">The panel</h2>
+          <ul class="roster" id="roster"></ul>
+        </section>
+
+        <footer class="rail-foot">
+          local-first · paid only when it counts
+        </footer>
+      </aside>
+
+      <main class="stage">
+        <div class="transcript" id="transcript">
+          <div class="welcome">
+            <h1>Ask anything.</h1>
+            <p>
+              A free local model carries the load. Research, hard code and
+              multimodal tasks are routed to the right paid expert — only when
+              the budget allows. Every answer shows who handled it and what it cost.
+            </p>
+          </div>
+        </div>
+
+        <form class="composer" id="composer">
+          <textarea
+            id="prompt"
+            rows="1"
+            placeholder="Message the conductor…"
+            autocomplete="off"
+          ></textarea>
+          <button type="submit" id="send" aria-label="Send">
+            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
+              <path d="M3 11l18-8-8 18-2-7-8-3z" fill="currentColor" />
+            </svg>
+          </button>
+        </form>
+      </main>
+    </div>
+    <script src="/static/chat.js"></script>
+  </body>
+</html>

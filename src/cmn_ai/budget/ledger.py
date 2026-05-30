@@ -9,6 +9,7 @@ Persistence is on disk so budget survives restarts.
 from __future__ import annotations
 
 import sqlite3
+import threading
 from datetime import datetime
 from pathlib import Path
 
@@ -35,9 +36,13 @@ class Ledger:
     def __init__(self, db_path: Path | str) -> None:
         self._path = Path(db_path)
         self._path.parent.mkdir(parents=True, exist_ok=True)
-        self._conn = sqlite3.connect(self._path)
-        self._conn.executescript(_SCHEMA)
-        self._conn.commit()
+        # check_same_thread=False: the web server may touch the ledger from
+        # different worker threads. A lock serializes all access for safety.
+        self._conn = sqlite3.connect(self._path, check_same_thread=False)
+        self._lock = threading.Lock()
+        with self._lock:
+            self._conn.executescript(_SCHEMA)
+            self._conn.commit()
 
     def record(
         self,
@@ -50,28 +55,30 @@ class Ledger:
         at: datetime,
     ) -> None:
         """Append a spend entry."""
-        self._conn.execute(
-            "INSERT INTO spend (ts, bucket, agent, model, tokens_in, tokens_out, eur)"
-            " VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (
-                at.timestamp(),
-                bucket.value,
-                agent,
-                model,
-                usage.tokens_in,
-                usage.tokens_out,
-                eur,
-            ),
-        )
-        self._conn.commit()
+        with self._lock:
+            self._conn.execute(
+                "INSERT INTO spend (ts, bucket, agent, model, tokens_in, tokens_out, eur)"
+                " VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (
+                    at.timestamp(),
+                    bucket.value,
+                    agent,
+                    model,
+                    usage.tokens_in,
+                    usage.tokens_out,
+                    eur,
+                ),
+            )
+            self._conn.commit()
 
     def spent_since(self, bucket: Bucket, since: datetime) -> float:
         """Total EUR spent in ``bucket`` at or after ``since``."""
-        cur = self._conn.execute(
-            "SELECT COALESCE(SUM(eur), 0.0) FROM spend WHERE bucket = ? AND ts >= ?",
-            (bucket.value, since.timestamp()),
-        )
-        (total,) = cur.fetchone()
+        with self._lock:
+            cur = self._conn.execute(
+                "SELECT COALESCE(SUM(eur), 0.0) FROM spend WHERE bucket = ? AND ts >= ?",
+                (bucket.value, since.timestamp()),
+            )
+            (total,) = cur.fetchone()
         return float(total)
 
     def close(self) -> None:
