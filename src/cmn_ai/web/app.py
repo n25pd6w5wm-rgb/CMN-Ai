@@ -28,6 +28,7 @@ from cmn_ai.config import Settings, load_settings
 from cmn_ai.core import RouteDecision, Task
 from cmn_ai.orchestrator import Orchestrator
 from cmn_ai.router.interface import Router
+from cmn_ai.storage.decisions import DecisionLog
 
 _WEB_DIR = Path(__file__).resolve().parent
 _TEMPLATES = Jinja2Templates(directory=str(_WEB_DIR / "templates"))
@@ -42,6 +43,7 @@ class AppState:
     router: Router
     governor: BudgetGovernor
     orchestrator: Orchestrator
+    decision_log: DecisionLog | None = None
 
 
 class ChatRequest(BaseModel):
@@ -127,6 +129,18 @@ def build_app(state: AppState) -> FastAPI:
         state.governor.raise_budget(req.monthly_budget_eur)
         return {"monthly_budget_eur": req.monthly_budget_eur}
 
+    @app.get("/api/analytics")
+    async def analytics() -> dict[str, Any]:
+        if state.decision_log is None:
+            return {"by_agent": [], "total_count": 0, "total_eur": 0.0}
+        return state.decision_log.summary()
+
+    @app.get("/api/decisions")
+    async def decisions(limit: int = 50) -> dict[str, Any]:
+        if state.decision_log is None:
+            return {"decisions": []}
+        return {"decisions": state.decision_log.recent(limit=limit)}
+
     @app.post("/api/route-debug")
     async def route_debug(req: ChatRequest) -> dict[str, Any]:
         decision = state.orchestrator.route(Task(prompt=req.prompt))
@@ -169,18 +183,21 @@ def build_state_from_settings(settings: Settings | None = None) -> AppState:
     from cmn_ai.router.rule_router import RuleRouter
 
     settings = settings or load_settings()
+    db_path = settings.storage.resolved_path
     agents = build_agents(settings)
-    governor = BudgetGovernor(
-        settings=settings.budget, ledger=Ledger(settings.storage.resolved_path)
-    )
+    governor = BudgetGovernor(settings=settings.budget, ledger=Ledger(db_path))
     router = RuleRouter(on_limit=settings.budget.on_limit)
-    orchestrator = Orchestrator(agents=agents, router=router, governor=governor)
+    decision_log = DecisionLog(db_path)
+    orchestrator = Orchestrator(
+        agents=agents, router=router, governor=governor, decision_log=decision_log
+    )
     return AppState(
         settings=settings,
         agents=agents,
         router=router,
         governor=governor,
         orchestrator=orchestrator,
+        decision_log=decision_log,
     )
 
 

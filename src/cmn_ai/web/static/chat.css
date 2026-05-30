@@ -158,6 +158,45 @@ html, body {
 .roster .r-name { color: var(--ink); }
 .roster .r-model { font-family: var(--mono); font-size: 10px; color: var(--ink-faint); margin-left: auto; }
 
+.this-week {
+  float: right;
+  color: var(--ink-faint);
+  letter-spacing: 0.1em;
+}
+.activity-empty { margin: 0; color: var(--ink-faint); font-size: 12px; }
+.activity-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  margin-bottom: 12px;
+}
+.activity-total {
+  font-family: var(--display);
+  font-size: 22px;
+  font-weight: 600;
+}
+.activity-count { font-family: var(--mono); font-size: 11px; color: var(--ink-dim); }
+.act-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12px;
+  padding: 5px 0;
+}
+.act-row .a-name { color: var(--ink); }
+.act-row .a-count {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-dim);
+}
+.act-row .a-bar {
+  height: 4px;
+  border-radius: 999px;
+  background: var(--brass-soft);
+  flex: none;
+}
+
 .rail-foot {
   margin-top: auto;
   font-family: var(--mono);

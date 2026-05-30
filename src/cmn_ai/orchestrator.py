@@ -8,12 +8,19 @@ decision short-circuits: no agent runs and nothing is billed.
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
+from datetime import UTC, datetime
 
 from cmn_ai.agents.base import Agent
 from cmn_ai.budget.governor import BudgetGovernor
 from cmn_ai.core import AgentResponse, RouteDecision, Task
 from cmn_ai.router.interface import Router
+from cmn_ai.storage.decisions import DecisionLog
+
+
+def _utc_now() -> datetime:
+    return datetime.now(UTC)
+
 
 SYSTEM_PROMPT = (
     "You are cmn-ai, a helpful, concise assistant. Answer directly and accurately. "
@@ -30,10 +37,14 @@ class Orchestrator:
         agents: Mapping[str, Agent],
         router: Router,
         governor: BudgetGovernor,
+        decision_log: DecisionLog | None = None,
+        now: Callable[[], datetime] = _utc_now,
     ) -> None:
         self._agents = agents
         self._router = router
         self._governor = governor
+        self._decision_log = decision_log
+        self._now = now
 
     def route(self, task: Task) -> RouteDecision:
         """Classify and select without running anything (used by route-debug)."""
@@ -44,6 +55,7 @@ class Orchestrator:
         """Route the task, run the chosen agent, and book its spend."""
         decision = self.route(task)
         if decision.blocked:
+            self._log(task.prompt, decision, None)
             return decision, None
 
         task = await self._router.optimize_prompt(task)
@@ -56,4 +68,9 @@ class Orchestrator:
             response.usage,
             eur=response.cost_eur,
         )
+        self._log(task.prompt, decision, response)
         return decision, response
+
+    def _log(self, prompt: str, decision: RouteDecision, response: AgentResponse | None) -> None:
+        if self._decision_log is not None:
+            self._decision_log.log(prompt, decision, response, at=self._now())

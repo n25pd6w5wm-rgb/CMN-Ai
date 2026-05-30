@@ -124,6 +124,7 @@ async function sendMessage(text) {
   }
   bubble.classList.remove("cursor");
   loadBudget();
+  loadAnalytics();
 }
 
 function handleEvent(block, ctx) {
@@ -181,6 +182,26 @@ async function loadModels() {
   }
 }
 
+async function loadAnalytics() {
+  const data = await (await fetch("/api/analytics")).json();
+  const host = $("#activity");
+  if (!data.total_count) {
+    host.innerHTML = `<p class="activity-empty">No requests yet.</p>`;
+    return;
+  }
+  const max = Math.max(...data.by_agent.map((a) => a.count), 1);
+  let html =
+    `<div class="activity-head"><span class="activity-total">${eur(data.total_eur)}</span>` +
+    `<span class="activity-count">${data.total_count} routed</span></div>`;
+  for (const a of data.by_agent) {
+    html +=
+      `<div class="act-row"><span class="a-name">${a.agent || "blocked"}</span>` +
+      `<span class="a-bar" style="width:${(a.count / max) * 70}px"></span>` +
+      `<span class="a-count">${a.count}</span></div>`;
+  }
+  host.innerHTML = html;
+}
+
 async function raiseBudget() {
   const current = $("#budget-monthly").textContent.replace(/[^0-9.]/g, "");
   const next = window.prompt("New monthly budget (€):", current || "35");
@@ -217,3 +238,4 @@ $("#raise-btn").addEventListener("click", raiseBudget);
 
 loadBudget();
 loadModels();
+loadAnalytics();

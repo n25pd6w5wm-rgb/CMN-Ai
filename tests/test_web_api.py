@@ -14,6 +14,7 @@ from cmn_ai.config import BudgetSettings, Settings
 from cmn_ai.core import AgentResponse, Bucket, Capability, CostPerMTok, Task, Usage
 from cmn_ai.orchestrator import Orchestrator
 from cmn_ai.router.rule_router import RuleRouter
+from cmn_ai.storage.decisions import DecisionLog
 from cmn_ai.web.app import AppState, build_app
 
 NOW = datetime(2026, 5, 30, 12, 0, tzinfo=UTC)
@@ -62,13 +63,17 @@ def _client(tmp_path: Path) -> TestClient:
         settings=settings.budget, ledger=Ledger(tmp_path / "l.db"), now=lambda: NOW
     )
     router = RuleRouter()
-    orchestrator = Orchestrator(agents=agents, router=router, governor=governor)
+    decision_log = DecisionLog(tmp_path / "d.db")
+    orchestrator = Orchestrator(
+        agents=agents, router=router, governor=governor, decision_log=decision_log, now=lambda: NOW
+    )
     state = AppState(
         settings=settings,
         agents=agents,
         router=router,
         governor=governor,
         orchestrator=orchestrator,
+        decision_log=decision_log,
     )
     return TestClient(build_app(state))
 
@@ -120,6 +125,16 @@ def test_chat_streams_route_and_answer(tmp_path: Path) -> None:
         if line.startswith("data: ") and '"text"' in line
     ]
     assert "".join(deltas).strip() == "hello world from agent"
+
+
+def test_analytics_reflects_a_chat(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    with client.stream("POST", "/api/chat", json={"prompt": "hello there"}) as resp:
+        "".join(resp.iter_text())
+    data = client.get("/api/analytics").json()
+    assert data["total_count"] == 1
+    assert data["total_eur"] == 0.0
+    assert any(a["agent"] == "local" for a in data["by_agent"])
 
 
 def test_chat_blocked_emits_blocked_event(tmp_path: Path) -> None:
