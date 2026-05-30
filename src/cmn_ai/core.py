@@ -110,3 +110,4 @@ class RouteDecision:
     reason: str
     estimated_eur: float
     fell_back: bool = False
+    blocked: bool = False
