@@ -1,0 +1,58 @@
+"""Tests for the agent factory that wires settings + pricing into adapters."""
+
+from __future__ import annotations
+
+import pytest
+
+from cmn_ai.agents.factory import build_agents
+from cmn_ai.budget.pricing import price_for
+from cmn_ai.config import load_settings
+from cmn_ai.core import Bucket, Capability
+
+
+def test_only_enabled_agents_are_built() -> None:
+    settings = load_settings(profile="mac")
+    agents = build_agents(settings)
+    # default.yaml enables only the local agent
+    assert "local" in agents
+    assert agents["local"].active is True
+    assert "anthropic" not in agents
+
+
+def test_enabled_cloud_agent_is_built_with_pricing(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    settings = load_settings(profile="mac")
+    settings.agents["anthropic"].enabled = True
+
+    agents = build_agents(settings)
+
+    anthropic = agents["anthropic"]
+    assert anthropic.name == "anthropic"
+    assert anthropic.active is True
+    assert anthropic.cost_per_mtok == price_for("claude-sonnet-4-6")
+    assert Capability.CODE in anthropic.capabilities
+
+
+def test_coding_agent_uses_coding_bucket(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    settings = load_settings(profile="mac")
+    settings.agents["coding"].enabled = True
+
+    agents = build_agents(settings)
+
+    assert agents["coding"].name == "coding"
+    assert agents["coding"].bucket is Bucket.CODING
+
+
+def test_cloud_agent_built_but_dormant_without_key() -> None:
+    settings = load_settings(profile="mac")
+    settings.agents["perplexity"].enabled = True
+    # no PERPLEXITY_API_KEY set
+
+    agents = build_agents(settings)
+
+    assert "perplexity" in agents
+    assert agents["perplexity"].active is False
+    assert Capability.RESEARCH in agents["perplexity"].capabilities

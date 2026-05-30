@@ -122,6 +122,7 @@ name = "cmn-ai"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "anthropic" },
     { name = "fastapi" },
     { name = "httpx" },
     { name = "jinja2" },
@@ -129,11 +130,6 @@ dependencies = [
     { name = "pydantic-settings" },
     { name = "pyyaml" },
     { name = "uvicorn", extra = ["standard"] },
-]
-
-[package.optional-dependencies]
-anthropic = [
-    { name = "anthropic" },
 ]
 
 [package.dev-dependencies]
@@ -148,7 +144,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "anthropic", marker = "extra == 'anthropic'", specifier = ">=0.40" },
+    { name = "anthropic", specifier = ">=0.40" },
     { name = "fastapi", specifier = ">=0.115" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "jinja2", specifier = ">=3.1" },
@@ -157,7 +153,6 @@ requires-dist = [
     { name = "pyyaml", specifier = ">=6.0" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
 ]
-provides-extras = ["anthropic"]
 
 [package.metadata.requires-dev]
 dev = [
