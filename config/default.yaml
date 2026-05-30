@@ -31,6 +31,7 @@ agents:
   coding:
     enabled: false
     model: "claude-sonnet-4-6"
+    escalate_model: "claude-opus-4-8"
     bucket: coding
     api_key_env: "ANTHROPIC_API_KEY"
   openai:

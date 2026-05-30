@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from cmn_ai.agents.anthropic import AnthropicAgent
 from cmn_ai.agents.base import Agent
+from cmn_ai.agents.coding import CodingAgent
 from cmn_ai.agents.gemini import GeminiAgent
 from cmn_ai.agents.local import OllamaAgent
 from cmn_ai.agents.openai_compat import OpenAICompatibleAgent
@@ -45,7 +46,14 @@ def build_agents(settings: Settings) -> dict[str, Agent]:
 
         if name == "local":
             agent = OllamaAgent(host=settings.ollama_host, model=cfg.model)
-        elif name in {"anthropic", "coding"}:
+        elif name == "coding":
+            agent = CodingAgent(
+                api_key=settings.api_key_for(name),
+                default_model=cfg.model,
+                hard_model=cfg.escalate_model or "claude-opus-4-8",
+                price_lookup=price_for,
+            )
+        elif name == "anthropic":
             agent = AnthropicAgent(
                 api_key=settings.api_key_for(name),
                 model=cfg.model,
@@ -53,7 +61,6 @@ def build_agents(settings: Settings) -> dict[str, Agent]:
                 capabilities=caps,
                 bucket=cfg.bucket,
             )
-            agent.name = name
         elif name in _OPENAI_COMPAT_BASE:
             agent = OpenAICompatibleAgent(
                 name=name,

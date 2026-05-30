@@ -39,6 +39,7 @@ class AgentSettings(BaseModel):
     bucket: Bucket = Bucket.GENERAL
     api_key_env: str | None = None
     base_url: str | None = None
+    escalate_model: str | None = None  # coding: model used for hard tasks
 
 
 class BudgetSettings(BaseModel):
