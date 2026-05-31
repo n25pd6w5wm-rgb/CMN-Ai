@@ -17,6 +17,14 @@ dependencies = [
     "anthropic>=0.40",
 ]
 
+[project.optional-dependencies]
+# Local LoRA fine-tuning of the routing model (Apple Silicon only). Optional so the
+# base app and the Raspberry Pi stay lean. Install with: uv sync --extra train
+train = [
+    "mlx>=0.20",
+    "mlx-lm>=0.20",
+]
+
 [project.scripts]
 cmn-ai = "cmn_ai.cli:main"
 
@@ -62,7 +70,7 @@ disallow_untyped_defs = true
 files = ["src", "tests"]
 
 [[tool.mypy.overrides]]
-module = ["respx.*"]
+module = ["respx.*", "mlx_lm.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

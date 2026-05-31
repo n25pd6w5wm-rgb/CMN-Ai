@@ -53,11 +53,18 @@ class BudgetSettings(BaseModel):
 
 
 class RouterSettings(BaseModel):
-    """Which routing strategy and which local model assists it."""
+    """Which routing strategy and (for the trained Dirigent) which model + adapter."""
 
-    strategy: str = "rule"
+    strategy: str = "rule"  # "rule" | "mlx"
     optimizer_model: str | None = "gemma4:latest"
     synthesize: bool = False
+    base_model: str = "mlx-community/Qwen2.5-1.5B-Instruct-4bit"
+    adapter_path: str = "~/.cmn-ai/router-adapter"
+    max_new_tokens: int = 48
+
+    @property
+    def resolved_adapter_path(self) -> Path:
+        return Path(self.adapter_path).expanduser()
 
 
 class StorageSettings(BaseModel):

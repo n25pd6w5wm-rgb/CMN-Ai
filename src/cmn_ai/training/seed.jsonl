@@ -1,0 +1,65 @@
+{"prompt": "hey, how's it going?", "capability": "chat", "complexity": "low", "needs_web": false}
+{"prompt": "what's your name?", "capability": "chat", "complexity": "low", "needs_web": false}
+{"prompt": "tell me a short joke", "capability": "chat", "complexity": "low", "needs_web": false}
+{"prompt": "thanks, that was helpful!", "capability": "chat", "complexity": "low", "needs_web": false}
+{"prompt": "explain photosynthesis in one sentence", "capability": "chat", "complexity": "low", "needs_web": false}
+{"prompt": "what does the word 'ephemeral' mean?", "capability": "chat", "complexity": "low", "needs_web": false}
+{"prompt": "give me a recipe for pancakes", "capability": "chat", "complexity": "low", "needs_web": false}
+{"prompt": "write a short poem about the sea", "capability": "chat", "complexity": "low", "needs_web": false}
+{"prompt": "summarize the plot of Romeo and Juliet", "capability": "chat", "complexity": "low", "needs_web": false}
+{"prompt": "what's the difference between a virus and bacteria?", "capability": "chat", "complexity": "low", "needs_web": false}
+{"prompt": "write a detailed essay comparing utilitarianism and deontology with examples", "capability": "chat", "complexity": "high", "needs_web": false}
+{"prompt": "explain the theory of general relativity and its key implications in depth", "capability": "chat", "complexity": "high", "needs_web": false}
+{"prompt": "help me plan a four-week strength training program with progression", "capability": "chat", "complexity": "high", "needs_web": false}
+{"prompt": "draft a thoughtful condolence letter to a grieving colleague", "capability": "chat", "complexity": "high", "needs_web": false}
+{"prompt": "walk me through the causes of the First World War step by step", "capability": "chat", "complexity": "high", "needs_web": false}
+{"prompt": "give me a balanced argument for and against remote work", "capability": "chat", "complexity": "high", "needs_web": false}
+{"prompt": "write a python function to reverse a string", "capability": "code", "complexity": "low", "needs_web": false}
+{"prompt": "how do I read a file line by line in Python?", "capability": "code", "complexity": "low", "needs_web": false}
+{"prompt": "fix this: print(x", "capability": "code", "complexity": "low", "needs_web": false}
+{"prompt": "what does this regex mean: ^\\d{3}-\\d{4}$", "capability": "code", "complexity": "low", "needs_web": false}
+{"prompt": "convert this list to a set in javascript", "capability": "code", "complexity": "low", "needs_web": false}
+{"prompt": "write a SQL query to select all users older than 30", "capability": "code", "complexity": "low", "needs_web": false}
+{"prompt": "how do I center a div with flexbox?", "capability": "code", "complexity": "low", "needs_web": false}
+{"prompt": "rename this variable from foo to bar", "capability": "code", "complexity": "low", "needs_web": false}
+{"prompt": "refactor this module to use dependency injection:\n```py\nclass A:\n    def __init__(self):\n        self.db = DB()\n```", "capability": "code", "complexity": "high", "needs_web": false}
+{"prompt": "design a scalable microservice architecture for an e-commerce checkout", "capability": "code", "complexity": "high", "needs_web": false}
+{"prompt": "debug this stack trace and explain the root cause:\n```\nTraceback (most recent call last):\n  File a.py line 10\nKeyError: 'id'\n```", "capability": "code", "complexity": "high", "needs_web": false}
+{"prompt": "optimize this O(n^2) algorithm to O(n log n) and prove the complexity", "capability": "code", "complexity": "high", "needs_web": false}
+{"prompt": "implement a thread-safe LRU cache in Go with tests", "capability": "code", "complexity": "high", "needs_web": false}
+{"prompt": "migrate this Django project from sync views to async and explain the tradeoffs", "capability": "code", "complexity": "high", "needs_web": false}
+{"prompt": "write a concurrent web scraper in Rust with rate limiting", "capability": "code", "complexity": "high", "needs_web": false}
+{"prompt": "refactor and design a plugin system for this codebase", "capability": "code", "complexity": "high", "needs_web": false}
+{"prompt": "what's the latest news about the election?", "capability": "research", "complexity": "low", "needs_web": true}
+{"prompt": "what's the current price of bitcoin?", "capability": "research", "complexity": "low", "needs_web": true}
+{"prompt": "what's the weather in Berlin today?", "capability": "research", "complexity": "low", "needs_web": true}
+{"prompt": "who won the game last night?", "capability": "research", "complexity": "low", "needs_web": true}
+{"prompt": "what are the most recent reviews of the new iPhone?", "capability": "research", "complexity": "low", "needs_web": true}
+{"prompt": "look up the opening hours of the Louvre", "capability": "research", "complexity": "low", "needs_web": true}
+{"prompt": "search for the current population of Tokyo", "capability": "research", "complexity": "low", "needs_web": true}
+{"prompt": "what's trending on tech news right now?", "capability": "research", "complexity": "low", "needs_web": true}
+{"prompt": "find recent flights from Munich to Lisbon this week", "capability": "research", "complexity": "low", "needs_web": true}
+{"prompt": "research the latest developments in solid-state batteries and cite sources", "capability": "research", "complexity": "high", "needs_web": true}
+{"prompt": "compare the current pricing of AWS, GCP and Azure for GPU instances", "capability": "research", "complexity": "high", "needs_web": true}
+{"prompt": "summarize this week's major AI research papers with links", "capability": "research", "complexity": "high", "needs_web": true}
+{"prompt": "do a market analysis of the current electric vehicle landscape in Europe", "capability": "research", "complexity": "high", "needs_web": true}
+{"prompt": "find and compare recent studies on intermittent fasting", "capability": "research", "complexity": "high", "needs_web": true}
+{"prompt": "what are the latest regulations on data privacy in the EU this year?", "capability": "research", "complexity": "high", "needs_web": true}
+{"prompt": "what's in this image?", "capability": "multimodal", "complexity": "low", "needs_web": false}
+{"prompt": "describe this photo for me", "capability": "multimodal", "complexity": "low", "needs_web": false}
+{"prompt": "what does this screenshot show?", "capability": "multimodal", "complexity": "low", "needs_web": false}
+{"prompt": "read the text in this picture", "capability": "multimodal", "complexity": "low", "needs_web": false}
+{"prompt": "what kind of plant is in this photo?", "capability": "multimodal", "complexity": "low", "needs_web": false}
+{"prompt": "transcribe this audio clip", "capability": "multimodal", "complexity": "low", "needs_web": false}
+{"prompt": "what's happening in this video?", "capability": "multimodal", "complexity": "low", "needs_web": false}
+{"prompt": "identify the landmark in this image", "capability": "multimodal", "complexity": "low", "needs_web": false}
+{"prompt": "analyze this architecture diagram and explain the data flow in detail", "capability": "multimodal", "complexity": "high", "needs_web": false}
+{"prompt": "extract all the tables from this scanned document and structure them", "capability": "multimodal", "complexity": "high", "needs_web": false}
+{"prompt": "review this UI screenshot and suggest detailed design improvements", "capability": "multimodal", "complexity": "high", "needs_web": false}
+{"prompt": "interpret this medical chart image and summarize the trends", "capability": "multimodal", "complexity": "high", "needs_web": false}
+{"prompt": "from this photo of my fridge, plan a week of meals", "capability": "multimodal", "complexity": "high", "needs_web": false}
+{"prompt": "analyze this graph screenshot and explain what's driving the spike", "capability": "multimodal", "complexity": "high", "needs_web": false}
+{"prompt": "good morning!", "capability": "chat", "complexity": "low", "needs_web": false}
+{"prompt": "can you help me brainstorm names for a coffee shop?", "capability": "chat", "complexity": "low", "needs_web": false}
+{"prompt": "write unit tests for this function:\n```py\ndef add(a, b):\n    return a + b\n```", "capability": "code", "complexity": "high", "needs_web": false}
+{"prompt": "what is the capital of France?", "capability": "chat", "complexity": "low", "needs_web": false}

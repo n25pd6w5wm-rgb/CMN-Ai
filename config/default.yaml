@@ -11,9 +11,12 @@ budget:
   on_limit: block
 
 router:
-  strategy: rule
+  strategy: rule            # "rule" (heuristic) or "mlx" (trained Dirigent)
   optimizer_model: "gemma4:latest"
   synthesize: false
+  base_model: "mlx-community/Qwen2.5-1.5B-Instruct-4bit"
+  adapter_path: "~/.cmn-ai/router-adapter"
+  max_new_tokens: 48
 
 storage:
   db_path: "~/.cmn-ai/cmn.db"

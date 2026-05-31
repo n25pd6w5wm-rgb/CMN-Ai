@@ -181,7 +181,6 @@ def build_state_from_settings(settings: Settings | None = None) -> AppState:
     from cmn_ai.agents.factory import build_agents
     from cmn_ai.budget.ledger import Ledger
     from cmn_ai.keystore import bootstrap_secrets
-    from cmn_ai.router.rule_router import RuleRouter
 
     settings = settings or load_settings()
     # Pull model API keys from Supabase (creds via local .env) and enable keyed agents.
@@ -189,7 +188,7 @@ def build_state_from_settings(settings: Settings | None = None) -> AppState:
     db_path = settings.storage.resolved_path
     agents = build_agents(settings)
     governor = BudgetGovernor(settings=settings.budget, ledger=Ledger(db_path))
-    router = RuleRouter(on_limit=settings.budget.on_limit)
+    router = build_router(settings)
     decision_log = DecisionLog(db_path)
     orchestrator = Orchestrator(
         agents=agents, router=router, governor=governor, decision_log=decision_log
@@ -202,6 +201,39 @@ def build_state_from_settings(settings: Settings | None = None) -> AppState:
         orchestrator=orchestrator,
         decision_log=decision_log,
     )
+
+
+def build_router(settings: Settings) -> Router:
+    """Pick the routing strategy: trained MLX Dirigent if available, else rules.
+
+    Always returns something usable — if ``strategy=mlx`` but the adapter is missing or
+    MLX can't load (e.g. not on Apple Silicon), it logs and falls back to the rule router.
+    """
+    from cmn_ai.router.rule_router import RuleRouter
+
+    rule = RuleRouter(on_limit=settings.budget.on_limit)
+    if settings.router.strategy != "mlx":
+        return rule
+
+    adapter = settings.router.resolved_adapter_path
+    if not adapter.exists():
+        print(f"[cmn-ai] router strategy=mlx but no adapter at {adapter}; using rule router.")
+        return rule
+
+    try:
+        from cmn_ai.router.mlx_router import MLXRouter
+        from cmn_ai.training.mlx_backend import build_generate_fn
+
+        generate_fn = build_generate_fn(
+            base_model=settings.router.base_model,
+            adapter_path=adapter,
+            max_new_tokens=settings.router.max_new_tokens,
+        )
+        print(f"[cmn-ai] trained Dirigent loaded ({settings.router.base_model} + adapter).")
+        return MLXRouter(rule_router=rule, generate_fn=generate_fn)
+    except Exception as exc:
+        print(f"[cmn-ai] failed to load MLX router ({exc}); using rule router.")
+        return rule
 
 
 def create_app() -> FastAPI:
