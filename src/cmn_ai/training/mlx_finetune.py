@@ -28,7 +28,8 @@ def run_lora(
     cmd = [
         sys.executable,
         "-m",
-        "mlx_lm.lora",
+        "mlx_lm",
+        "lora",
         "--model",
         base_model,
         "--train",

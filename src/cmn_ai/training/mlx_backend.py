@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from pathlib import Path
+from typing import Any
 
 from cmn_ai.training.prompts import build_classify_messages
 
@@ -23,7 +24,12 @@ def build_generate_fn(
     """Load the base model + LoRA adapter and return a prompt->text generator."""
     from mlx_lm import generate, load  # lazy: requires Apple Silicon + mlx-lm
 
-    model, tokenizer = load(base_model, adapter_path=str(adapter_path))
+    # load() returns (model, tokenizer) by default; index so the typed Union (which also
+    # allows a 3-tuple when return_config=True) checks cleanly either way. Bind as Any so
+    # mlx_lm's untyped tokenizer methods don't break mypy whether or not mlx is installed.
+    loaded = load(base_model, adapter_path=str(adapter_path))
+    model: Any = loaded[0]
+    tokenizer: Any = loaded[1]
 
     def _generate(prompt: str) -> str:
         messages = build_classify_messages(prompt)
