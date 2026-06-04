@@ -13,6 +13,9 @@ from cmn_ai.keystore import (
     bootstrap_secrets,
     load_dotenv,
     load_supabase_keys,
+    table_exists,
+    update_dotenv,
+    upsert_keys,
 )
 
 _TABLE_URL = "https://demo.supabase.co/rest/v1/api_keys"
@@ -100,3 +103,57 @@ def test_bootstrap_survives_supabase_error(tmp_path: Path) -> None:
     # must not raise — local-only operation should still be possible
     bootstrap_secrets(settings, env=env)
     assert settings.agents["local"].enabled is True
+
+
+@respx.mock
+def test_table_exists_true_on_200() -> None:
+    respx.get(_TABLE_URL).mock(return_value=httpx.Response(200, json=[]))
+    assert table_exists(url="https://demo.supabase.co", service_key="svc") is True
+
+
+@respx.mock
+def test_table_exists_false_when_missing() -> None:
+    respx.get(_TABLE_URL).mock(return_value=httpx.Response(404, json={"message": "not found"}))
+    assert table_exists(url="https://demo.supabase.co", service_key="svc") is False
+
+
+@respx.mock
+def test_upsert_keys_posts_merge_duplicates() -> None:
+    captured: dict[str, object] = {}
+
+    def _cap(request: httpx.Request) -> httpx.Response:
+        captured["prefer"] = request.headers.get("prefer")
+        captured["body"] = request.content
+        return httpx.Response(201, json=[])
+
+    respx.post(_TABLE_URL).mock(side_effect=_cap)
+    upsert_keys(
+        {"ANTHROPIC_API_KEY": "sk-ant-1"}, url="https://demo.supabase.co", service_key="svc"
+    )
+    assert captured["prefer"] == "resolution=merge-duplicates"
+    assert b"ANTHROPIC_API_KEY" in captured["body"]  # type: ignore[operator]
+
+
+@respx.mock
+def test_upsert_keys_empty_is_noop() -> None:
+    route = respx.post(_TABLE_URL).mock(return_value=httpx.Response(201, json=[]))
+    upsert_keys({}, url="https://demo.supabase.co", service_key="svc")
+    assert not route.called
+
+
+def test_update_dotenv_creates_and_updates(tmp_path: Path) -> None:
+    p = tmp_path / ".env"
+    p.write_text("# header\nSUPABASE_URL=old\nOTHER=keep\n")
+    update_dotenv(p, {"SUPABASE_URL": "new", "SUPABASE_KEY": "svc"})
+    text = p.read_text()
+    assert "SUPABASE_URL=new" in text
+    assert "SUPABASE_KEY=svc" in text  # appended
+    assert "OTHER=keep" in text  # preserved
+    assert "# header" in text  # comment preserved
+    assert "SUPABASE_URL=old" not in text
+
+
+def test_update_dotenv_on_missing_file(tmp_path: Path) -> None:
+    p = tmp_path / ".env"
+    update_dotenv(p, {"SUPABASE_URL": "x"})
+    assert p.read_text() == "SUPABASE_URL=x\n"

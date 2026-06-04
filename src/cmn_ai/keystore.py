@@ -41,6 +41,10 @@ def load_dotenv(path: Path | str, *, env: EnvMap = os.environ) -> None:
             env.setdefault(key, value)
 
 
+def _auth_headers(service_key: str) -> dict[str, str]:
+    return {"apikey": service_key, "Authorization": f"Bearer {service_key}"}
+
+
 def load_supabase_keys(
     *,
     url: str,
@@ -49,15 +53,79 @@ def load_supabase_keys(
     timeout: float = 10.0,
 ) -> dict[str, str]:
     """Fetch ``{name: value}`` API keys from a Supabase (PostgREST) table."""
-    headers = {"apikey": service_key, "Authorization": f"Bearer {service_key}"}
     resp = httpx.get(
         f"{url.rstrip('/')}/rest/v1/{table}",
         params={"select": "name,value"},
-        headers=headers,
+        headers=_auth_headers(service_key),
         timeout=timeout,
     )
     resp.raise_for_status()
     return {row["name"]: row["value"] for row in resp.json()}
+
+
+def table_exists(
+    *,
+    url: str,
+    service_key: str,
+    table: str = "api_keys",
+    timeout: float = 10.0,
+) -> bool:
+    """Return True if the table is reachable (HTTP 200), False otherwise.
+
+    Used by the setup wizard to detect the one-time table-creation step, which PostgREST
+    cannot perform (DDL must run in Supabase's SQL editor).
+    """
+    resp = httpx.get(
+        f"{url.rstrip('/')}/rest/v1/{table}",
+        params={"select": "name", "limit": 1},
+        headers=_auth_headers(service_key),
+        timeout=timeout,
+    )
+    return resp.status_code == 200
+
+
+def upsert_keys(
+    keys: dict[str, str],
+    *,
+    url: str,
+    service_key: str,
+    table: str = "api_keys",
+    timeout: float = 10.0,
+) -> None:
+    """Insert-or-update ``{name: value}`` rows in the Supabase table (idempotent)."""
+    if not keys:
+        return
+    headers = {
+        **_auth_headers(service_key),
+        "Content-Type": "application/json",
+        "Prefer": "resolution=merge-duplicates",
+    }
+    payload = [{"name": name, "value": value} for name, value in keys.items()]
+    resp = httpx.post(
+        f"{url.rstrip('/')}/rest/v1/{table}",
+        json=payload,
+        headers=headers,
+        timeout=timeout,
+    )
+    resp.raise_for_status()
+
+
+def update_dotenv(path: Path | str, updates: dict[str, str]) -> None:
+    """Merge ``updates`` into a .env file, rewriting existing keys and keeping comments."""
+    p = Path(path)
+    lines = p.read_text().splitlines() if p.exists() else []
+    remaining = dict(updates)
+    out: list[str] = []
+    for raw in lines:
+        stripped = raw.strip()
+        if stripped and not stripped.startswith("#") and "=" in stripped:
+            key = stripped.partition("=")[0].strip()
+            if key in remaining:
+                out.append(f"{key}={remaining.pop(key)}")
+                continue
+        out.append(raw)
+    out.extend(f"{key}={value}" for key, value in remaining.items())
+    p.write_text("\n".join(out) + "\n")
 
 
 def apply_to_env(keys: dict[str, str], *, env: EnvMap = os.environ) -> None:

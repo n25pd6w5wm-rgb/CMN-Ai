@@ -50,6 +50,20 @@ uv run cmn-ai serve               # then open http://127.0.0.1:8000
 Ollama must be running locally with a Gemma model pulled (e.g. `ollama pull gemma4`).
 The active profile (mac/pi) is auto-detected or set via `CMN_AI_PROFILE`.
 
+### Supabase keys (one command)
+
+Instead of exporting keys by hand, store them once in Supabase and let the app load them
+at startup (agents with a key auto-enable). The wizard writes `.env`, checks/creates the
+`api_keys` table, and uploads your model keys:
+
+```bash
+uv run cmn-ai setup
+```
+
+It asks for your Supabase project URL + service-role key, then for each model key
+(blank = skip). If the `api_keys` table is missing, it prints the SQL (copied to your
+clipboard) and a link to the SQL editor. See `.env.example` for the manual path.
+
 ## Development
 
 ```bash
