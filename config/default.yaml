@@ -14,8 +14,8 @@ router:
   strategy: mlx             # "rule" (heuristic) or "mlx" (trained Dirigent)
   optimizer_model: "gemma4:latest"
   synthesize: false
-  base_model: "mlx-community/Qwen2.5-1.5B-Instruct-4bit"
-  adapter_path: "~/.cmn-ai/router-adapter"
+  base_model: "mlx-community/gemma-3-1b-it-4bit"
+  adapter_path: "~/.cmn-ai/router-adapter-gemma3-1b"
   max_new_tokens: 48
 
 storage:

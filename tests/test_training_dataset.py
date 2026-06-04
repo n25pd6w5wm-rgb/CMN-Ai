@@ -97,11 +97,11 @@ def test_build_chat_jsonl_round_trips_label(tmp_path: Path) -> None:
     rows = build_chat_jsonl([sample])
     assert len(rows) == 1
     messages = rows[0]["messages"]
-    assert messages[0]["role"] == "system"
-    assert messages[1] == {"role": "user", "content": "write a function"}
-    assert messages[2]["role"] == "assistant"
+    assert messages[0]["role"] == "user"
+    assert "write a function" in messages[0]["content"]
+    assert messages[-1]["role"] == "assistant"
     # the assistant target must parse back to the same classification
-    assert parse_classification(messages[2]["content"]) == sample.classification
+    assert parse_classification(messages[-1]["content"]) == sample.classification
 
 
 def test_split_is_deterministic_and_disjoint() -> None:

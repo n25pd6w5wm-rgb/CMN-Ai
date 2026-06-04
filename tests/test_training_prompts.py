@@ -63,8 +63,10 @@ def test_parse_returns_none_on_missing_field() -> None:
     assert parse_classification('{"capability": "chat", "complexity": "low"}') is None
 
 
-def test_build_classify_messages_has_system_and_user() -> None:
+def test_build_classify_messages_folds_instruction_into_user_turn() -> None:
     messages = build_classify_messages("write a python function")
-    assert messages[0]["role"] == "system"
-    assert messages[0]["content"] == SYSTEM_INSTRUCTION
-    assert messages[-1] == {"role": "user", "content": "write a python function"}
+    # single user turn (model-agnostic: Gemma rejects a system role)
+    assert len(messages) == 1
+    assert messages[0]["role"] == "user"
+    assert SYSTEM_INSTRUCTION in messages[0]["content"]
+    assert "write a python function" in messages[0]["content"]

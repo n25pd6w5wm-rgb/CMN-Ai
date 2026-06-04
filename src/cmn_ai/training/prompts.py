@@ -28,10 +28,14 @@ _JSON_OBJECT = re.compile(r"\{.*?\}", re.DOTALL)
 
 
 def build_classify_messages(prompt: str) -> list[dict[str, str]]:
-    """Chat messages for classifying one user prompt (system + user)."""
+    """Chat messages for classifying one user prompt.
+
+    The instruction is folded into the single user turn instead of a separate system
+    message, so the identical format works across model families — notably Gemma, whose
+    chat template rejects a ``system`` role. Used the same way at train and inference time.
+    """
     return [
-        {"role": "system", "content": SYSTEM_INSTRUCTION},
-        {"role": "user", "content": prompt},
+        {"role": "user", "content": f"{SYSTEM_INSTRUCTION}\n\nRequest:\n{prompt}"},
     ]
 
 
