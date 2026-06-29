@@ -5,21 +5,31 @@ for hard tasks (long prompts, code fences, architecture/refactor work). It alway
 draws on the isolated ``coding`` budget bucket so coding can never starve general use.
 A coding-tuned system prompt is sent as a cached prefix to cut repeat input cost.
 
-This is the Messages-API coding agent. The fuller agentic loop (Claude Agent SDK with
-file/bash tools and a workspace) is the natural next step and slots in behind the same
-``Agent`` interface — it is intentionally deferred until a live API key and a tool
-sandbox design are in place.
+When a read-only ``workspace`` is supplied the agent runs an **agentic tool loop**: it
+hands Claude file-inspection tools (read/list/search, see ``workspace.py``) and keeps
+exchanging tool calls until the model produces a final answer. The loop is bounded by a
+hard ``max_iterations`` cap and an optional ``budget_guard`` callback (cumulative cost
+estimate -> may continue) so a multi-turn request can never run away on the coding
+budget. Without a workspace it stays a single Messages-API call (the original behaviour).
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import cast
+from typing import Any, cast
 
 from anthropic import AsyncAnthropic
-from anthropic.types import MessageParam, TextBlock, TextBlockParam
+from anthropic.types import (
+    MessageParam,
+    TextBlock,
+    TextBlockParam,
+    ToolParam,
+    ToolResultBlockParam,
+    ToolUseBlock,
+)
 
 from cmn_ai.agents.base import build_messages
+from cmn_ai.agents.workspace import WORKSPACE_TOOLS, WorkspaceTools
 from cmn_ai.core import AgentResponse, Bucket, Capability, CostPerMTok, Task, Usage
 
 CODING_SYSTEM = (
@@ -58,6 +68,9 @@ class CodingAgent:
         hard_model: str,
         price_lookup: Callable[[str], CostPerMTok],
         max_tokens: int = 8192,
+        workspace: WorkspaceTools | None = None,
+        max_iterations: int = 8,
+        budget_guard: Callable[[float], bool] | None = None,
     ) -> None:
         self.name = "coding"
         self.api_key = api_key
@@ -68,6 +81,9 @@ class CodingAgent:
         self.capabilities = frozenset({Capability.CODE})
         self.bucket = Bucket.CODING
         self._max_tokens = max_tokens
+        self._workspace = workspace
+        self._max_iterations = max_iterations
+        self._budget_guard = budget_guard
 
     @property
     def active(self) -> bool:
@@ -78,25 +94,82 @@ class CodingAgent:
         client = AsyncAnthropic(api_key=self.api_key)
         messages = cast(list[MessageParam], build_messages(task))
         system_blocks: list[TextBlockParam] = [
-            {
-                "type": "text",
-                "text": CODING_SYSTEM,
-                "cache_control": {"type": "ephemeral"},
-            }
+            {"type": "text", "text": CODING_SYSTEM, "cache_control": {"type": "ephemeral"}}
         ]
 
-        message = await client.messages.create(
-            model=model,
-            max_tokens=self._max_tokens,
-            messages=messages,
-            system=system_blocks,
-        )
+        if self._workspace is None:
+            message = await client.messages.create(
+                model=model, max_tokens=self._max_tokens, messages=messages, system=system_blocks
+            )
+            text = "".join(b.text for b in message.content if isinstance(b, TextBlock))
+            usage = Usage(
+                tokens_in=message.usage.input_tokens, tokens_out=message.usage.output_tokens
+            )
+            return self._response(model, text, usage)
 
-        text = "".join(b.text for b in message.content if isinstance(b, TextBlock))
-        usage = Usage(
-            tokens_in=message.usage.input_tokens,
-            tokens_out=message.usage.output_tokens,
-        )
+        return await self._run_tool_loop(client, model, messages, system_blocks)
+
+    async def _run_tool_loop(
+        self,
+        client: AsyncAnthropic,
+        model: str,
+        messages: list[MessageParam],
+        system_blocks: list[TextBlockParam],
+    ) -> AgentResponse:
+        assert self._workspace is not None
+        price = self._price_lookup(model)
+        total_in = 0
+        total_out = 0
+        final_text = ""
+
+        for _ in range(self._max_iterations):
+            if self._budget_guard is not None and not self._budget_guard(
+                price.estimate(total_in, total_out)
+            ):
+                final_text = (final_text + "\n\n[stopped: coding budget reached]").strip()
+                break
+
+            message = await client.messages.create(
+                model=model,
+                max_tokens=self._max_tokens,
+                messages=messages,
+                system=system_blocks,
+                tools=cast("list[ToolParam]", WORKSPACE_TOOLS),
+            )
+            total_in += message.usage.input_tokens
+            total_out += message.usage.output_tokens
+            text = "".join(b.text for b in message.content if isinstance(b, TextBlock))
+            if text:
+                final_text = text
+            messages.append(
+                cast(
+                    MessageParam,
+                    {"role": "assistant", "content": [b.model_dump() for b in message.content]},
+                )
+            )
+            if message.stop_reason != "tool_use":
+                break
+
+            tool_results: list[ToolResultBlockParam] = []
+            for block in message.content:
+                if isinstance(block, ToolUseBlock):
+                    result, is_error = self._workspace.dispatch(
+                        block.name, cast(dict[str, Any], block.input)
+                    )
+                    tool_results.append(
+                        {
+                            "type": "tool_result",
+                            "tool_use_id": block.id,
+                            "content": result,
+                            "is_error": is_error,
+                        }
+                    )
+            messages.append(cast(MessageParam, {"role": "user", "content": tool_results}))
+
+        usage = Usage(tokens_in=total_in, tokens_out=total_out)
+        return self._response(model, final_text, usage)
+
+    def _response(self, model: str, text: str, usage: Usage) -> AgentResponse:
         price = self._price_lookup(model)
         return AgentResponse(
             text=text,

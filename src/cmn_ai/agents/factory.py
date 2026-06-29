@@ -47,11 +47,20 @@ def build_agents(settings: Settings) -> dict[str, Agent]:
         if name == "local":
             agent = OllamaAgent(host=settings.ollama_host, model=cfg.model)
         elif name == "coding":
+            # Read-only tool loop is opt-in: only when a workspace dir is configured.
+            workspace = None
+            if cfg.workspace_root:
+                from pathlib import Path
+
+                from cmn_ai.agents.workspace import WorkspaceTools
+
+                workspace = WorkspaceTools(Path(cfg.workspace_root).expanduser())
             agent = CodingAgent(
                 api_key=settings.api_key_for(name),
                 default_model=cfg.model,
                 hard_model=cfg.escalate_model or "claude-opus-4-8",
                 price_lookup=price_for,
+                workspace=workspace,
             )
         elif name == "anthropic":
             agent = AnthropicAgent(
