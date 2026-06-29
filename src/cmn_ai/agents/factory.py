@@ -43,9 +43,7 @@ def _coding_budget_guard(governor: BudgetGovernor) -> Callable[[float], bool]:
     return lambda eur: governor.can_spend(Bucket.CODING, eur)
 
 
-def build_agents(
-    settings: Settings, governor: BudgetGovernor | None = None
-) -> dict[str, Agent]:
+def build_agents(settings: Settings, governor: BudgetGovernor | None = None) -> dict[str, Agent]:
     """Instantiate every enabled agent, keyed by its config name.
 
     When a ``governor`` is supplied, the coding agent's tool loop is given a budget
