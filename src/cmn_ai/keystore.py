@@ -45,6 +45,16 @@ def _auth_headers(service_key: str) -> dict[str, str]:
     return {"apikey": service_key, "Authorization": f"Bearer {service_key}"}
 
 
+def _looks_like_publishable_key(key: str) -> bool:
+    """True if ``key`` is a Supabase *publishable* (public) key, not the service-role key.
+
+    Publishable keys can't bypass RLS, so the RLS-protected ``api_keys`` table reads back
+    empty and the app would silently fall back to local-only. Detecting this lets us warn
+    instead of leaving the user puzzled (a common first-time setup mistake).
+    """
+    return key.startswith("sb_publishable_")
+
+
 def load_supabase_keys(
     *,
     url: str,
@@ -149,11 +159,18 @@ def bootstrap_secrets(
     url = env.get("SUPABASE_URL")
     service_key = env.get("SUPABASE_KEY")
     if url and service_key:
-        try:
-            keys = load_supabase_keys(url=url, service_key=service_key)
-            apply_to_env(keys, env=env)
-        except Exception as exc:
-            print(f"[cmn-ai] Supabase key load failed ({exc}); continuing local-only.")
+        if _looks_like_publishable_key(service_key):
+            print(
+                "[cmn-ai] SUPABASE_KEY looks like a publishable (public) key "
+                "(sb_publishable_…). The api_keys table is RLS-protected and needs the "
+                "service-role secret key — model keys won't load; running local-only."
+            )
+        else:
+            try:
+                keys = load_supabase_keys(url=url, service_key=service_key)
+                apply_to_env(keys, env=env)
+            except Exception as exc:
+                print(f"[cmn-ai] Supabase key load failed ({exc}); continuing local-only.")
 
     # Auto-enable any agent whose API key is now available.
     for cfg in settings.agents.values():

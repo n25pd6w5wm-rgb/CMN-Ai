@@ -105,6 +105,20 @@ def test_bootstrap_survives_supabase_error(tmp_path: Path) -> None:
     assert settings.agents["local"].enabled is True
 
 
+def test_bootstrap_warns_on_publishable_key(capsys: object) -> None:
+    # A publishable (public) key can't bypass RLS, so the api_keys table reads back
+    # empty. Warn loudly instead of silently falling back to local-only. No network
+    # call should be attempted (the fetch is pointless with this key type).
+    env = {"SUPABASE_URL": "https://demo.supabase.co", "SUPABASE_KEY": "sb_publishable_abc"}
+    settings = load_settings(profile="mac")
+    bootstrap_secrets(settings, env=env)
+    out = capsys.readouterr().out  # type: ignore[attr-defined]
+    assert "publishable" in out.lower()
+    assert "service" in out.lower()
+    # no key was loaded, anthropic stays disabled
+    assert settings.agents["anthropic"].enabled is False
+
+
 @respx.mock
 def test_table_exists_true_on_200() -> None:
     respx.get(_TABLE_URL).mock(return_value=httpx.Response(200, json=[]))
