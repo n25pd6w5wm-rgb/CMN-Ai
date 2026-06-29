@@ -53,13 +53,21 @@ class BudgetSettings(BaseModel):
 
 
 class RouterSettings(BaseModel):
-    """Which routing strategy and (for the trained Dirigent) which model + adapter."""
+    """Which routing strategy and (for the trained Dirigent) which model + adapter.
 
-    strategy: str = "rule"  # "rule" | "mlx"
+    ``strategy`` selects how tasks are classified:
+    - ``rule``  — heuristic RuleRouter (runs everywhere, no model needed).
+    - ``mlx``   — the trained Dirigent via MLX (Apple Silicon only).
+    - ``ollama``— the trained Dirigent served by Ollama as a fused GGUF model, for the
+      Raspberry Pi where MLX is unavailable (see ``docs/router-on-pi.md``).
+    """
+
+    strategy: str = "rule"  # "rule" | "mlx" | "ollama"
     optimizer_model: str | None = "gemma4:latest"
     synthesize: bool = False
     base_model: str = "mlx-community/Qwen2.5-1.5B-Instruct-4bit"
     adapter_path: str = "~/.cmn-ai/router-adapter"
+    ollama_model: str = "cmn-dirigent"  # Ollama model name for the fused router (Pi path)
     max_new_tokens: int = 48
 
     @property

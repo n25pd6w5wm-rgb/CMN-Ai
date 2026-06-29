@@ -1,5 +1,13 @@
 # Raspberry Pi profile. Constrained hardware: use the smaller local model and keep
 # the database on the Pi's home directory.
+#
+# The trained Dirigent runs via Ollama here (MLX is Apple-Silicon only). Export the fused
+# GGUF on a Mac with scripts/export-router-gguf.sh, then `ollama create cmn-dirigent`.
+# See docs/router-on-pi.md. If Ollama or the model is missing, routing falls back to rules.
+
+router:
+  strategy: ollama
+  ollama_model: "cmn-dirigent"
 
 agents:
   local:

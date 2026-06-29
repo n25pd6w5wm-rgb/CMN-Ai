@@ -204,36 +204,54 @@ def build_state_from_settings(settings: Settings | None = None) -> AppState:
 
 
 def build_router(settings: Settings) -> Router:
-    """Pick the routing strategy: trained MLX Dirigent if available, else rules.
+    """Pick the routing strategy: trained Dirigent (mlx/ollama) if available, else rules.
 
-    Always returns something usable — if ``strategy=mlx`` but the adapter is missing or
-    MLX can't load (e.g. not on Apple Silicon), it logs and falls back to the rule router.
+    Always returns something usable — if a trained strategy can't be loaded (adapter
+    missing, MLX unavailable off Apple Silicon, Ollama unreachable), it logs and falls
+    back to the deterministic rule router. The learned model only ever does
+    classification; budget/agent selection always stays with the RuleRouter.
     """
+    from cmn_ai.router.mlx_router import MLXRouter
     from cmn_ai.router.rule_router import RuleRouter
 
     rule = RuleRouter(on_limit=settings.budget.on_limit)
-    if settings.router.strategy != "mlx":
-        return rule
+    strategy = settings.router.strategy
 
-    adapter = settings.router.resolved_adapter_path
-    if not adapter.exists():
-        print(f"[cmn-ai] router strategy=mlx but no adapter at {adapter}; using rule router.")
-        return rule
+    if strategy == "mlx":
+        adapter = settings.router.resolved_adapter_path
+        if not adapter.exists():
+            print(f"[cmn-ai] router strategy=mlx but no adapter at {adapter}; using rule router.")
+            return rule
+        try:
+            from cmn_ai.training.mlx_backend import build_generate_fn
 
-    try:
-        from cmn_ai.router.mlx_router import MLXRouter
-        from cmn_ai.training.mlx_backend import build_generate_fn
+            generate_fn = build_generate_fn(
+                base_model=settings.router.base_model,
+                adapter_path=adapter,
+                max_new_tokens=settings.router.max_new_tokens,
+            )
+            print(f"[cmn-ai] trained Dirigent loaded ({settings.router.base_model} + adapter).")
+            return MLXRouter(rule_router=rule, generate_fn=generate_fn)
+        except Exception as exc:
+            print(f"[cmn-ai] failed to load MLX router ({exc}); using rule router.")
+            return rule
 
-        generate_fn = build_generate_fn(
-            base_model=settings.router.base_model,
-            adapter_path=adapter,
-            max_new_tokens=settings.router.max_new_tokens,
-        )
-        print(f"[cmn-ai] trained Dirigent loaded ({settings.router.base_model} + adapter).")
-        return MLXRouter(rule_router=rule, generate_fn=generate_fn)
-    except Exception as exc:
-        print(f"[cmn-ai] failed to load MLX router ({exc}); using rule router.")
-        return rule
+    if strategy == "ollama":
+        try:
+            from cmn_ai.router.ollama_backend import build_ollama_generate_fn
+
+            generate_fn = build_ollama_generate_fn(
+                model=settings.router.ollama_model,
+                host=settings.ollama_host,
+                max_new_tokens=settings.router.max_new_tokens,
+            )
+            print(f"[cmn-ai] trained Dirigent via Ollama ({settings.router.ollama_model}).")
+            return MLXRouter(rule_router=rule, generate_fn=generate_fn)
+        except Exception as exc:
+            print(f"[cmn-ai] failed to build Ollama router ({exc}); using rule router.")
+            return rule
+
+    return rule
 
 
 def create_app() -> FastAPI:
