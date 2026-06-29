@@ -40,7 +40,8 @@ class AgentSettings(BaseModel):
     api_key_env: str | None = None
     base_url: str | None = None
     escalate_model: str | None = None  # coding: model used for hard tasks
-    workspace_root: str | None = None  # coding: enable the read-only tool loop over this dir
+    workspace_root: str | None = None  # coding: enable the tool loop over this dir
+    workspace_writable: bool = False  # coding: allow write_file/edit_file in the workspace
 
 
 class BudgetSettings(BaseModel):

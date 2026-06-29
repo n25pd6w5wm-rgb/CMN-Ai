@@ -65,3 +65,65 @@ def test_dispatch_missing_file_is_error_not_raise(tmp_path: Path) -> None:
     ws = _workspace(tmp_path)
     _text, is_error = ws.dispatch("read_file", {"path": "nope.txt"})
     assert is_error is True
+
+
+# -- write tools (opt-in) --------------------------------------------------
+
+
+def test_read_only_workspace_hides_and_blocks_write_tools(tmp_path: Path) -> None:
+    ws = _workspace(tmp_path)  # writable defaults to False
+    assert {t["name"] for t in ws.tools} == {"read_file", "list_dir", "search"}
+    text, is_error = ws.dispatch("write_file", {"path": "x.txt", "content": "nope"})
+    assert is_error is True
+    assert "read-only" in text
+    assert not (tmp_path / "x.txt").exists()
+
+
+def test_writable_workspace_advertises_write_tools(tmp_path: Path) -> None:
+    ws = WorkspaceTools(tmp_path, writable=True)
+    assert {t["name"] for t in ws.tools} == {
+        "read_file",
+        "list_dir",
+        "search",
+        "write_file",
+        "edit_file",
+    }
+
+
+def test_write_file_creates_file_within_workspace(tmp_path: Path) -> None:
+    ws = WorkspaceTools(tmp_path, writable=True)
+    _text, is_error = ws.dispatch("write_file", {"path": "sub/new.py", "content": "x = 1\n"})
+    assert is_error is False
+    assert (tmp_path / "sub" / "new.py").read_text() == "x = 1\n"
+
+
+def test_write_file_escape_is_rejected(tmp_path: Path) -> None:
+    ws = WorkspaceTools(tmp_path, writable=True)
+    _text, is_error = ws.dispatch("write_file", {"path": "../evil.py", "content": "boom"})
+    assert is_error is True
+    assert not (tmp_path.parent / "evil.py").exists()
+
+
+def test_edit_file_replaces_unique_occurrence(tmp_path: Path) -> None:
+    (tmp_path / "c.py").write_text("value = 1\n")
+    ws = WorkspaceTools(tmp_path, writable=True)
+    _text, is_error = ws.dispatch("edit_file", {"path": "c.py", "old": "1", "new": "2"})
+    assert is_error is False
+    assert (tmp_path / "c.py").read_text() == "value = 2\n"
+
+
+def test_edit_file_ambiguous_match_is_error(tmp_path: Path) -> None:
+    (tmp_path / "d.py").write_text("a = 1\nb = 1\n")
+    ws = WorkspaceTools(tmp_path, writable=True)
+    text, is_error = ws.dispatch("edit_file", {"path": "d.py", "old": "1", "new": "2"})
+    assert is_error is True
+    assert "not unique" in text
+    assert (tmp_path / "d.py").read_text() == "a = 1\nb = 1\n"  # unchanged
+
+
+def test_edit_file_missing_string_is_error(tmp_path: Path) -> None:
+    (tmp_path / "e.py").write_text("hello\n")
+    ws = WorkspaceTools(tmp_path, writable=True)
+    text, is_error = ws.dispatch("edit_file", {"path": "e.py", "old": "absent", "new": "x"})
+    assert is_error is True
+    assert "not found" in text

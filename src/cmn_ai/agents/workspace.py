@@ -1,10 +1,11 @@
-"""Read-only workspace tools for the coding agent's agentic loop.
+"""File tools for the coding agent's agentic loop, confined to one workspace root.
 
-The coding agent may inspect a project to answer a question, but only within a single
-confined root directory and only by *reading* — no writes, no shell. Every path is
+The agent inspects — and, when the workspace is ``writable``, edits — a project, but
+only within a single confined root directory and never via a shell. Every path is
 resolved and checked to stay inside the root, so the model can't escape via ``..`` or a
-symlink. This is the deliberately safe first tool surface (the user chose read-only);
-richer tools can be added later behind the same ``dispatch`` without touching the loop.
+symlink, on reads *or* writes. Writing is opt-in (the user enables it deliberately): the
+configured root is the sandbox, so point it at a working copy. ``dispatch`` never raises
+— failures come back as tool results with ``is_error=True`` so the model can recover.
 """
 
 from __future__ import annotations
@@ -19,7 +20,7 @@ _SKIP_DIRS = frozenset(
 )
 
 # Anthropic tool schemas advertised to the model. Kept in sync with WorkspaceTools.dispatch.
-WORKSPACE_TOOLS: list[dict[str, Any]] = [
+READ_TOOLS: list[dict[str, Any]] = [
     {
         "name": "read_file",
         "description": "Read a UTF-8 text file from the workspace (returns up to ~100 KB).",
@@ -62,16 +63,50 @@ WORKSPACE_TOOLS: list[dict[str, Any]] = [
     },
 ]
 
+WRITE_TOOLS: list[dict[str, Any]] = [
+    {
+        "name": "write_file",
+        "description": "Create or overwrite a UTF-8 text file in the workspace with given content.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Path relative to the workspace root."},
+                "content": {"type": "string", "description": "Full new file contents."},
+            },
+            "required": ["path", "content"],
+        },
+    },
+    {
+        "name": "edit_file",
+        "description": "Replace one exact, unique occurrence of 'old' with 'new' in a file.",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "path": {"type": "string", "description": "Path relative to the workspace root."},
+                "old": {"type": "string", "description": "Exact text to replace (must be unique)."},
+                "new": {"type": "string", "description": "Replacement text."},
+            },
+            "required": ["path", "old", "new"],
+        },
+    },
+]
+
 
 class WorkspaceError(ValueError):
     """Raised when a tool call references a path outside the workspace or an invalid target."""
 
 
 class WorkspaceTools:
-    """Read-only file tools confined to ``root``. Dispatch never raises."""
+    """File tools confined to ``root``. Writes require ``writable=True``. Dispatch never raises."""
 
-    def __init__(self, root: Path) -> None:
+    def __init__(self, root: Path, *, writable: bool = False) -> None:
         self.root = root.resolve()
+        self.writable = writable
+
+    @property
+    def tools(self) -> list[dict[str, Any]]:
+        """The tool schemas to advertise: read-only, plus write tools when writable."""
+        return READ_TOOLS + WRITE_TOOLS if self.writable else READ_TOOLS
 
     def _resolve(self, rel: str) -> Path:
         """Resolve ``rel`` under the root, rejecting anything that escapes it."""
@@ -79,6 +114,8 @@ class WorkspaceTools:
         if candidate != self.root and self.root not in candidate.parents:
             raise WorkspaceError(f"path '{rel}' escapes the workspace")
         return candidate
+
+    # -- read --------------------------------------------------------------
 
     def read_file(self, path: str) -> str:
         target = self._resolve(path)
@@ -117,6 +154,39 @@ class WorkspaceTools:
                         return "\n".join(matches) + "\n… (truncated)"
         return "\n".join(matches) if matches else "(no matches)"
 
+    # -- write (opt-in) ----------------------------------------------------
+
+    def _require_writable(self) -> None:
+        if not self.writable:
+            raise WorkspaceError("workspace is read-only; writing is disabled")
+
+    def write_file(self, path: str, content: str) -> str:
+        self._require_writable()
+        if len(content.encode("utf-8")) > MAX_FILE_BYTES:
+            raise WorkspaceError(f"content exceeds {MAX_FILE_BYTES} bytes")
+        target = self._resolve(path)
+        if target == self.root or target.is_dir():
+            raise WorkspaceError(f"not a writable file path: {path}")
+        target.parent.mkdir(parents=True, exist_ok=True)
+        target.write_text(content, encoding="utf-8")
+        return f"wrote {len(content)} chars to {path}"
+
+    def edit_file(self, path: str, old: str, new: str) -> str:
+        self._require_writable()
+        target = self._resolve(path)
+        if not target.is_file():
+            raise WorkspaceError(f"not a file: {path}")
+        text = target.read_text("utf-8")
+        count = text.count(old)
+        if count == 0:
+            raise WorkspaceError("'old' text not found")
+        if count > 1:
+            raise WorkspaceError(f"'old' text is not unique ({count} occurrences)")
+        target.write_text(text.replace(old, new, 1), encoding="utf-8")
+        return f"edited {path}"
+
+    # -- dispatch ----------------------------------------------------------
+
     def dispatch(self, name: str, arguments: dict[str, Any]) -> tuple[str, bool]:
         """Run a tool by name; return ``(text, is_error)`` and never raise.
 
@@ -130,6 +200,15 @@ class WorkspaceTools:
                 return self.list_dir(str(arguments.get("path", "."))), False
             if name == "search":
                 return self.search(str(arguments["query"]), str(arguments.get("path", "."))), False
+            if name == "write_file":
+                return self.write_file(str(arguments["path"]), str(arguments["content"])), False
+            if name == "edit_file":
+                return (
+                    self.edit_file(
+                        str(arguments["path"]), str(arguments["old"]), str(arguments["new"])
+                    ),
+                    False,
+                )
             return f"unknown tool: {name}", True
         except (WorkspaceError, KeyError, OSError) as exc:
             return f"error: {exc}", True

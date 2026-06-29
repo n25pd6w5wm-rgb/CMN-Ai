@@ -29,7 +29,7 @@ from anthropic.types import (
 )
 
 from cmn_ai.agents.base import build_messages
-from cmn_ai.agents.workspace import WORKSPACE_TOOLS, WorkspaceTools
+from cmn_ai.agents.workspace import WorkspaceTools
 from cmn_ai.core import AgentResponse, Bucket, Capability, CostPerMTok, Task, Usage
 
 CODING_SYSTEM = (
@@ -134,7 +134,7 @@ class CodingAgent:
                 max_tokens=self._max_tokens,
                 messages=messages,
                 system=system_blocks,
-                tools=cast("list[ToolParam]", WORKSPACE_TOOLS),
+                tools=cast("list[ToolParam]", self._workspace.tools),
             )
             total_in += message.usage.input_tokens
             total_out += message.usage.output_tokens

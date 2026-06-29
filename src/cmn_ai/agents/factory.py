@@ -69,7 +69,9 @@ def build_agents(
 
                 from cmn_ai.agents.workspace import WorkspaceTools
 
-                workspace = WorkspaceTools(Path(cfg.workspace_root).expanduser())
+                workspace = WorkspaceTools(
+                    Path(cfg.workspace_root).expanduser(), writable=cfg.workspace_writable
+                )
                 if governor is not None:
                     budget_guard = _coding_budget_guard(governor)
             agent = CodingAgent(

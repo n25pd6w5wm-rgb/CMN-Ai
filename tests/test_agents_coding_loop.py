@@ -84,6 +84,27 @@ async def test_tool_loop_reads_file_then_answers(tmp_path: Path) -> None:
 
 
 @respx.mock
+async def test_tool_loop_advertises_write_tools_when_writable(tmp_path: Path) -> None:
+    bodies: list[dict[str, object]] = []
+
+    def _route(req: httpx.Request) -> httpx.Response:
+        bodies.append(json.loads(req.content))
+        return httpx.Response(200, json=_final("done", 1, 1))
+
+    respx.post(_URL).mock(side_effect=_route)
+
+    await _agent(WorkspaceTools(tmp_path, writable=True)).run(Task(prompt="make a change"))
+
+    assert {t["name"] for t in bodies[0]["tools"]} == {  # type: ignore[union-attr]
+        "read_file",
+        "list_dir",
+        "search",
+        "write_file",
+        "edit_file",
+    }
+
+
+@respx.mock
 async def test_tool_loop_reports_tool_error_to_model(tmp_path: Path) -> None:
     bodies: list[dict[str, object]] = []
     responses = [
