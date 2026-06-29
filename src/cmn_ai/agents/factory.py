@@ -9,15 +9,18 @@ adapter file plus one branch here.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from cmn_ai.agents.anthropic import AnthropicAgent
 from cmn_ai.agents.base import Agent
 from cmn_ai.agents.coding import CodingAgent
 from cmn_ai.agents.gemini import GeminiAgent
 from cmn_ai.agents.local import OllamaAgent
 from cmn_ai.agents.openai_compat import OpenAICompatibleAgent
+from cmn_ai.budget.governor import BudgetGovernor
 from cmn_ai.budget.pricing import price_for
 from cmn_ai.config import Settings
-from cmn_ai.core import Capability
+from cmn_ai.core import Bucket, Capability
 
 # Capabilities advertised by each known config key.
 _CAPABILITIES: dict[str, frozenset[Capability]] = {
@@ -35,8 +38,19 @@ _OPENAI_COMPAT_BASE = {
 }
 
 
-def build_agents(settings: Settings) -> dict[str, Agent]:
-    """Instantiate every enabled agent, keyed by its config name."""
+def _coding_budget_guard(governor: BudgetGovernor) -> Callable[[float], bool]:
+    """A guard the coding tool loop calls each turn: may we still afford ``eur`` more?"""
+    return lambda eur: governor.can_spend(Bucket.CODING, eur)
+
+
+def build_agents(
+    settings: Settings, governor: BudgetGovernor | None = None
+) -> dict[str, Agent]:
+    """Instantiate every enabled agent, keyed by its config name.
+
+    When a ``governor`` is supplied, the coding agent's tool loop is given a budget
+    guard so a multi-turn request stops once the coding bucket can no longer afford it.
+    """
     agents: dict[str, Agent] = {}
     for name, cfg in settings.agents.items():
         if not cfg.enabled:
@@ -49,18 +63,22 @@ def build_agents(settings: Settings) -> dict[str, Agent]:
         elif name == "coding":
             # Read-only tool loop is opt-in: only when a workspace dir is configured.
             workspace = None
+            budget_guard = None
             if cfg.workspace_root:
                 from pathlib import Path
 
                 from cmn_ai.agents.workspace import WorkspaceTools
 
                 workspace = WorkspaceTools(Path(cfg.workspace_root).expanduser())
+                if governor is not None:
+                    budget_guard = _coding_budget_guard(governor)
             agent = CodingAgent(
                 api_key=settings.api_key_for(name),
                 default_model=cfg.model,
                 hard_model=cfg.escalate_model or "claude-opus-4-8",
                 price_lookup=price_for,
                 workspace=workspace,
+                budget_guard=budget_guard,
             )
         elif name == "anthropic":
             agent = AnthropicAgent(

@@ -186,8 +186,8 @@ def build_state_from_settings(settings: Settings | None = None) -> AppState:
     # Pull model API keys from Supabase (creds via local .env) and enable keyed agents.
     bootstrap_secrets(settings)
     db_path = settings.storage.resolved_path
-    agents = build_agents(settings)
     governor = BudgetGovernor(settings=settings.budget, ledger=Ledger(db_path))
+    agents = build_agents(settings, governor)
     router = build_router(settings)
     decision_log = DecisionLog(db_path)
     orchestrator = Orchestrator(

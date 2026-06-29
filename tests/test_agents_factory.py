@@ -2,9 +2,13 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from cmn_ai.agents.factory import build_agents
+from cmn_ai.budget.governor import BudgetGovernor
+from cmn_ai.budget.ledger import Ledger
 from cmn_ai.budget.pricing import price_for
 from cmn_ai.config import load_settings
 from cmn_ai.core import Bucket, Capability
@@ -44,6 +48,33 @@ def test_coding_agent_uses_coding_bucket(monkeypatch: pytest.MonkeyPatch) -> Non
 
     assert agents["coding"].name == "coding"
     assert agents["coding"].bucket is Bucket.CODING
+
+
+def test_coding_tool_loop_is_off_without_workspace(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    settings = load_settings(profile="mac")
+    settings.agents["coding"].enabled = True
+
+    coding = build_agents(settings)["coding"]
+
+    assert coding._workspace is None  # type: ignore[attr-defined]
+    assert coding._budget_guard is None  # type: ignore[attr-defined]
+
+
+def test_coding_budget_guard_wired_with_workspace_and_governor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    settings = load_settings(profile="mac")
+    settings.agents["coding"].enabled = True
+    settings.agents["coding"].workspace_root = str(tmp_path)
+    governor = BudgetGovernor(settings=settings.budget, ledger=Ledger(tmp_path / "ledger.db"))
+
+    coding = build_agents(settings, governor)["coding"]
+
+    # Guard is active only when a governor is supplied alongside the workspace.
+    assert coding._workspace is not None  # type: ignore[attr-defined]
+    assert coding._budget_guard is not None  # type: ignore[attr-defined]
 
 
 def test_cloud_agent_built_but_dormant_without_key() -> None:
