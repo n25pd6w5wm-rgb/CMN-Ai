@@ -214,7 +214,15 @@ def build_router(settings: Settings) -> Router:
     from cmn_ai.router.mlx_router import MLXRouter
     from cmn_ai.router.rule_router import RuleRouter
 
-    rule = RuleRouter(on_limit=settings.budget.on_limit)
+    # Optional local prompt optimiser (free Gemma via Ollama). Opt-in; the same rule
+    # router is reused by the trained strategies, so they get optimisation via delegation.
+    optimizer = None
+    if settings.router.optimize and settings.router.optimizer_model:
+        from cmn_ai.agents.local import OllamaAgent
+
+        optimizer = OllamaAgent(host=settings.ollama_host, model=settings.router.optimizer_model)
+
+    rule = RuleRouter(on_limit=settings.budget.on_limit, optimizer=optimizer)
     strategy = settings.router.strategy
 
     if strategy == "mlx":

@@ -10,6 +10,7 @@ allows. When a needed paid agent is unaffordable, behaviour follows the configur
 from __future__ import annotations
 
 from collections.abc import Mapping
+from dataclasses import replace
 
 from cmn_ai.agents.base import Agent
 from cmn_ai.budget.governor import BudgetGovernor
@@ -77,6 +78,17 @@ _HARD_KEYWORDS = (
 _HARD_LENGTH = 400
 _FREE = CostPerMTok(0.0, 0.0)
 _DEFAULT_OUTPUT_TOKENS = 800
+
+# Prompt optimisation (optional, local). Only substantial prompts are worth rewriting;
+# trivial ones rarely benefit and risk distortion. A rewrite is rejected if it is empty
+# or runs away in length, so optimisation can only help, never break, a request.
+_OPTIMIZE_MIN_CHARS = 80
+_OPTIMIZE_SYSTEM = (
+    "You rewrite a user's request so another AI can answer it better. Make it clearer, "
+    "more specific and well-structured while preserving the user's exact intent, language "
+    "and every constraint. Do NOT answer it, add new facts, or ask questions. Output only "
+    "the rewritten request, with no preamble or explanation."
+)
 
 
 def _is_free(agent: Agent) -> bool:
@@ -220,8 +232,27 @@ class RuleRouter:
     # -- prompt help (optional, local) -------------------------------------
 
     async def optimize_prompt(self, task: Task) -> Task:
-        """No-op for now; a hook for local prompt rewriting in a later phase."""
-        return task
+        """Optionally rewrite the prompt via a local model (e.g. Gemma).
+
+        Conservative by design: runs only when an optimizer agent is configured and the
+        prompt is substantial enough to benefit — never for trivial prompts or ones with
+        attachments. Any failure or degenerate rewrite (empty or runaway) falls back to
+        the original task untouched. History and attachments are always preserved.
+        """
+        if self._optimizer is None or task.has_attachments:
+            return task
+        original = task.prompt
+        if len(original.strip()) < _OPTIMIZE_MIN_CHARS:
+            return task
+        try:
+            response = await self._optimizer.run(Task(prompt=original), system=_OPTIMIZE_SYSTEM)
+        except Exception as exc:  # never let optimisation break a request
+            print(f"[cmn-ai] prompt optimisation failed ({exc}); using original prompt.")
+            return task
+        rewritten = response.text.strip()
+        if not rewritten or len(rewritten) > len(original) * 4 + 200:
+            return task
+        return replace(task, prompt=rewritten)
 
     async def synthesize(self, task: Task, responses: list[AgentResponse]) -> str:
         """Combine responses. With a single response this is a pass-through."""
