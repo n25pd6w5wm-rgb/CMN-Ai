@@ -7,6 +7,9 @@ the best AI under a **hard budget limit**, controlled through a local chat web U
 A free local model (Gemma via Ollama) carries the volume; paid APIs (Claude, OpenAI,
 Gemini, Perplexity) are engaged only when a task needs them and the budget allows.
 
+> **End-user guide (German):** [`docs/BENUTZERHANDBUCH.md`](docs/BENUTZERHANDBUCH.md) —
+> how to install, run, configure and what to know. This README is the developer overview.
+
 ## Architecture
 
 ```
