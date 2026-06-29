@@ -13,10 +13,11 @@ from __future__ import annotations
 import json
 from collections.abc import AsyncIterator, Mapping
 from dataclasses import dataclass
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
@@ -25,9 +26,10 @@ from pydantic import BaseModel
 from cmn_ai.agents.base import Agent
 from cmn_ai.budget.governor import BudgetGovernor
 from cmn_ai.config import Settings, load_settings
-from cmn_ai.core import RouteDecision, Task
+from cmn_ai.core import Message, RouteDecision, Task
 from cmn_ai.orchestrator import Orchestrator
 from cmn_ai.router.interface import Router
+from cmn_ai.storage.conversations import ConversationStore
 from cmn_ai.storage.decisions import DecisionLog
 
 _WEB_DIR = Path(__file__).resolve().parent
@@ -44,14 +46,20 @@ class AppState:
     governor: BudgetGovernor
     orchestrator: Orchestrator
     decision_log: DecisionLog | None = None
+    conversations: ConversationStore | None = None
 
 
 class ChatRequest(BaseModel):
     prompt: str
+    conversation_id: int | None = None
 
 
 class RaiseRequest(BaseModel):
     monthly_budget_eur: float
+
+
+class RenameRequest(BaseModel):
+    title: str
 
 
 def _sse(event: str, data: dict[str, Any]) -> str:
@@ -156,10 +164,67 @@ def build_app(state: AppState) -> FastAPI:
         decision = state.orchestrator.route(Task(prompt=req.prompt))
         return _decision_dict(decision)
 
+    def _require_store() -> ConversationStore:
+        if state.conversations is None:
+            raise HTTPException(503, "conversation store unavailable")
+        return state.conversations
+
+    @app.get("/api/conversations")
+    async def list_conversations() -> dict[str, Any]:
+        store = state.conversations
+        return {"conversations": store.list_all() if store else []}
+
+    @app.post("/api/conversations")
+    async def new_conversation() -> dict[str, Any]:
+        store = _require_store()
+        return {"id": store.create(at=datetime.now(UTC)), "title": "New chat"}
+
+    @app.get("/api/conversations/{conversation_id}")
+    async def get_conversation(conversation_id: int) -> dict[str, Any]:
+        store = _require_store()
+        if not store.exists(conversation_id):
+            raise HTTPException(404, "conversation not found")
+        return {"id": conversation_id, "messages": store.messages(conversation_id)}
+
+    @app.patch("/api/conversations/{conversation_id}")
+    async def rename_conversation(conversation_id: int, req: RenameRequest) -> dict[str, Any]:
+        store = _require_store()
+        if not store.exists(conversation_id):
+            raise HTTPException(404, "conversation not found")
+        store.rename(conversation_id, req.title)
+        return {"id": conversation_id, "title": req.title}
+
+    @app.delete("/api/conversations/{conversation_id}")
+    async def delete_conversation(conversation_id: int) -> dict[str, Any]:
+        store = _require_store()
+        store.delete(conversation_id)
+        return {"ok": True}
+
     @app.post("/api/chat")
     async def chat(req: ChatRequest) -> StreamingResponse:
+        store = state.conversations
+        now = datetime.now(UTC)
+        # Resolve (or open) the conversation and gather prior turns as context.
+        cid: int | None = None
+        history: tuple[Message, ...] = ()
+        if store is not None:
+            cid = (
+                req.conversation_id
+                if req.conversation_id and store.exists(req.conversation_id)
+                else store.create(at=now)
+            )
+            history = tuple(
+                Message(role=m["role"], content=m["content"])
+                for m in store.messages(cid)
+                if m["role"] in ("user", "assistant")
+            )
+            store.add_message(cid, "user", req.prompt, at=now)
+        task = Task(prompt=req.prompt, history=history)
+
         async def stream() -> AsyncIterator[str]:
-            decision, response = await state.orchestrator.handle(Task(prompt=req.prompt))
+            if cid is not None:
+                yield _sse("conversation", {"id": cid})
+            decision, response = await state.orchestrator.handle(task)
             yield _sse("route", _decision_dict(decision))
             if response is None:
                 yield _sse(
@@ -170,6 +235,16 @@ def build_app(state: AppState) -> FastAPI:
                 return
             for word in response.text.split(" "):
                 yield _sse("delta", {"text": word + " "})
+            if store is not None and cid is not None:
+                store.add_message(
+                    cid,
+                    "assistant",
+                    response.text,
+                    at=datetime.now(UTC),
+                    agent=response.agent,
+                    model=response.model,
+                    cost_eur=response.cost_eur,
+                )
             yield _sse(
                 "done",
                 {
@@ -200,6 +275,7 @@ def build_state_from_settings(settings: Settings | None = None) -> AppState:
     agents = build_agents(settings, governor)
     router = build_router(settings)
     decision_log = DecisionLog(db_path)
+    conversations = ConversationStore(db_path)
     orchestrator = Orchestrator(
         agents=agents, router=router, governor=governor, decision_log=decision_log
     )
@@ -210,6 +286,7 @@ def build_state_from_settings(settings: Settings | None = None) -> AppState:
         governor=governor,
         orchestrator=orchestrator,
         decision_log=decision_log,
+        conversations=conversations,
     )
 
 

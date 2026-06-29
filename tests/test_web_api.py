@@ -14,6 +14,7 @@ from cmn_ai.config import BudgetSettings, Settings
 from cmn_ai.core import AgentResponse, Bucket, Capability, CostPerMTok, Task, Usage
 from cmn_ai.orchestrator import Orchestrator
 from cmn_ai.router.rule_router import RuleRouter
+from cmn_ai.storage.conversations import ConversationStore
 from cmn_ai.storage.decisions import DecisionLog
 from cmn_ai.web.app import AppState, build_app
 
@@ -74,6 +75,7 @@ def _client(tmp_path: Path) -> TestClient:
         governor=governor,
         orchestrator=orchestrator,
         decision_log=decision_log,
+        conversations=ConversationStore(tmp_path / "conv.db"),
     )
     return TestClient(build_app(state))
 
@@ -150,3 +152,113 @@ def test_chat_blocked_emits_blocked_event(tmp_path: Path) -> None:
     ) as resp:
         body = "".join(resp.iter_text())
     assert "event: blocked" in body
+
+
+# ---------- conversations & multi-turn history ----------
+
+
+def _events(text: str) -> list[tuple[str | None, dict[str, object]]]:
+    out: list[tuple[str | None, dict[str, object]]] = []
+    for block in text.split("\n\n"):
+        event: str | None = None
+        data = ""
+        for line in block.split("\n"):
+            if line.startswith("event: "):
+                event = line[7:].strip()
+            elif line.startswith("data: "):
+                data += line[6:]
+        if data:
+            out.append((event, json.loads(data)))
+    return out
+
+
+def test_new_conversation_and_empty_list(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    assert client.get("/api/conversations").json()["conversations"] == []
+    created = client.post("/api/conversations").json()
+    assert created["id"] >= 1
+    rows = client.get("/api/conversations").json()["conversations"]
+    assert len(rows) == 1 and rows[0]["title"] == "New chat"
+
+
+def test_chat_persists_messages_and_autotitles(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    with client.stream("POST", "/api/chat", json={"prompt": "hello there friend"}) as resp:
+        body = "".join(resp.iter_text())
+    conv_events = [d for ev, d in _events(body) if ev == "conversation"]
+    assert conv_events, "chat should announce its conversation id"
+    cid = conv_events[0]["id"]
+
+    convo = client.get(f"/api/conversations/{cid}").json()
+    roles = [m["role"] for m in convo["messages"]]
+    assert roles == ["user", "assistant"]
+    assert convo["messages"][1]["agent"] == "local"
+    assert (
+        client.get("/api/conversations").json()["conversations"][0]["title"] == "hello there friend"
+    )
+
+
+def test_chat_feeds_prior_history_as_context(tmp_path: Path) -> None:
+    settings = Settings(profile="mac", budget=BudgetSettings(monthly_budget_eur=30.0))
+
+    class RecordingAgent:
+        def __init__(self) -> None:
+            self.name = "local"
+            self.model = "m"
+            self.capabilities = frozenset({Capability.CHAT, Capability.CODE})
+            self.cost_per_mtok = FREE
+            self.bucket = Bucket.GENERAL
+            self.active = True
+            self.history_lengths: list[int] = []
+
+        async def run(self, task: Task, *, system: str | None = None) -> AgentResponse:
+            self.history_lengths.append(len(task.history))
+            return AgentResponse(
+                text="ok",
+                agent=self.name,
+                model=self.model,
+                usage=Usage(1, 1),
+                cost_eur=0.0,
+                bucket=self.bucket,
+            )
+
+    rec = RecordingAgent()
+    agents = {"local": rec}
+    governor = BudgetGovernor(
+        settings=settings.budget, ledger=Ledger(tmp_path / "l.db"), now=lambda: NOW
+    )
+    orchestrator = Orchestrator(
+        agents=agents, router=RuleRouter(), governor=governor, now=lambda: NOW
+    )
+    state = AppState(
+        settings=settings,
+        agents=agents,
+        router=RuleRouter(),
+        governor=governor,
+        orchestrator=orchestrator,
+        conversations=ConversationStore(tmp_path / "conv.db"),
+    )
+    client = TestClient(build_app(state))
+
+    with client.stream("POST", "/api/chat", json={"prompt": "first"}) as resp:
+        body = "".join(resp.iter_text())
+    cid = next(d["id"] for ev, d in _events(body) if ev == "conversation")
+    with client.stream("POST", "/api/chat", json={"prompt": "second", "conversation_id": cid}):
+        pass
+
+    # First turn has no history; second turn sees the prior user+assistant pair.
+    assert rec.history_lengths == [0, 2]
+
+
+def test_rename_and_delete_conversation(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    cid = client.post("/api/conversations").json()["id"]
+    assert client.patch(f"/api/conversations/{cid}", json={"title": "Pi notes"}).status_code == 200
+    assert client.get("/api/conversations").json()["conversations"][0]["title"] == "Pi notes"
+    client.delete(f"/api/conversations/{cid}")
+    assert client.get("/api/conversations").json()["conversations"] == []
+
+
+def test_get_missing_conversation_is_404(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    assert client.get("/api/conversations/9999").status_code == 404
