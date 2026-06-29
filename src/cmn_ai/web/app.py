@@ -86,7 +86,15 @@ def build_app(state: AppState) -> FastAPI:
 
     @app.get("/", response_class=HTMLResponse)
     async def index(request: Request) -> HTMLResponse:
-        return _TEMPLATES.TemplateResponse(request, "index.html")
+        # Cache-bust static assets by their mtime so CSS/JS edits show up immediately
+        # (no stale browser cache) without manual version bumps.
+        def _v(name: str) -> int:
+            asset = _WEB_DIR / "static" / name
+            return int(asset.stat().st_mtime) if asset.exists() else 0
+
+        return _TEMPLATES.TemplateResponse(
+            request, "index.html", {"css_v": _v("chat.css"), "js_v": _v("chat.js")}
+        )
 
     @app.get("/api/models")
     async def models() -> dict[str, Any]:
