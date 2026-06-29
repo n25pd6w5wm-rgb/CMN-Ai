@@ -86,6 +86,9 @@ def test_models_lists_agents(tmp_path: Path) -> None:
     local = next(m for m in data["models"] if m["name"] == "local")
     assert local["active"] is True
     assert "chat" in local["capabilities"]
+    # Every model carries a "tools" field; non-coding agents report none.
+    assert all("tools" in m for m in data["models"])
+    assert local["tools"] is None
 
 
 def test_budget_reports_caps(tmp_path: Path) -> None:

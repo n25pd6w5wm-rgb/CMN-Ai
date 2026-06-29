@@ -31,6 +31,33 @@ web/         FastAPI app + SSE chat UI (budget meter, route transparency, analyt
 3. Over budget, behaviour follows `on_limit`: a hard **block** (default) or a free fallback.
 4. Every decision and its real cost is logged for a future trained router.
 
+### Coding agent (agentic tool loop)
+
+The Claude coding agent can run an **agentic tool loop**: given a workspace directory,
+it inspects the project with read-only tools (`read_file`, `list_dir`, `search`) and,
+when writing is enabled, edits it (`write_file`, `edit_file`). There is no shell. Every
+path is confined to the workspace root (no `..` or symlink escape), and the loop is
+bounded by a hard iteration cap plus a budget guard, so a multi-turn request can never
+overspend the coding bucket. It is off by default — enable it per the coding agent:
+
+```yaml
+agents:
+  coding:
+    workspace_root: ~/code/my-project   # enables the read-only tool loop over this dir
+    workspace_writable: false           # set true to allow write_file / edit_file (sandbox)
+```
+
+Point `workspace_root` at a working copy when enabling writes — that directory is the
+sandbox. `/api/models` reports each coding agent's `tools` status (`workspace`, `writable`).
+
+### Trained router & prompt optimisation
+
+The Dirigent is swappable via `router.strategy`: `rule` (heuristic, default), `mlx` (the
+trained LoRA model on Apple Silicon), or `ollama` (the same model on a Raspberry Pi — see
+[`docs/router-on-pi.md`](docs/router-on-pi.md)). Optionally set `router.optimize: true` to
+let the local Gemma rewrite substantial prompts for clarity before they are answered
+(fail-safe: trivial prompts are skipped and any error falls back to the original).
+
 ### Budget governor
 
 Monthly budget (default 35 €) is scaled to a **rolling 7-day window** and split into

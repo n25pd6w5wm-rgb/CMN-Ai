@@ -157,6 +157,7 @@ html, body {
 .dot.on { background: var(--ok); box-shadow: 0 0 8px rgba(143,177,90,0.6); }
 .roster .r-name { color: var(--ink); }
 .roster .r-model { font-family: var(--mono); font-size: 10px; color: var(--ink-faint); margin-left: auto; }
+.roster .r-tools { font-size: 9px; color: var(--ink-faint); margin-left: 8px; padding: 1px 6px; border: 1px solid var(--line, rgba(255,255,255,0.12)); border-radius: 8px; white-space: nowrap; }
 
 .this-week {
   float: right;

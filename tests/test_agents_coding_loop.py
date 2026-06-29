@@ -83,6 +83,21 @@ async def test_tool_loop_reads_file_then_answers(tmp_path: Path) -> None:
     assert response.usage.tokens_out == 13
 
 
+def test_tool_status_reflects_workspace(tmp_path: Path) -> None:
+    none = CodingAgent(
+        api_key="k",
+        default_model="claude-sonnet-4-6",
+        hard_model="claude-opus-4-8",
+        price_lookup=_PRICES.__getitem__,
+    )
+    assert none.tool_status == {"workspace": False, "writable": False}
+    assert _agent(WorkspaceTools(tmp_path)).tool_status == {"workspace": True, "writable": False}
+    assert _agent(WorkspaceTools(tmp_path, writable=True)).tool_status == {
+        "workspace": True,
+        "writable": True,
+    }
+
+
 @respx.mock
 async def test_tool_loop_advertises_write_tools_when_writable(tmp_path: Path) -> None:
     bodies: list[dict[str, object]] = []

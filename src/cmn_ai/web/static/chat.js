@@ -174,10 +174,17 @@ async function loadModels() {
   host.innerHTML = "";
   for (const m of data.models) {
     const li = document.createElement("li");
+    const tools =
+      m.tools && m.tools.workspace
+        ? `<span class="r-tools" title="agentic tool loop">${
+            m.tools.writable ? "tools: read/write" : "tools: read-only"
+          }</span>`
+        : "";
     li.innerHTML =
       `<span class="dot ${m.active ? "on" : ""}"></span>` +
       `<span class="r-name">${m.name}</span>` +
-      `<span class="r-model">${m.model}</span>`;
+      `<span class="r-model">${m.model}</span>` +
+      tools;
     host.appendChild(li);
   }
 }

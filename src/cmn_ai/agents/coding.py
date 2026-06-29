@@ -89,6 +89,14 @@ class CodingAgent:
     def active(self) -> bool:
         return bool(self.api_key)
 
+    @property
+    def tool_status(self) -> dict[str, bool]:
+        """Whether the agentic tool loop is on and whether it may write (for the UI)."""
+        return {
+            "workspace": self._workspace is not None,
+            "writable": self._workspace is not None and self._workspace.writable,
+        }
+
     async def run(self, task: Task, *, system: str | None = None) -> AgentResponse:
         model = self._hard_model if _looks_hard(task.prompt) else self.model
         client = AsyncAnthropic(api_key=self.api_key)

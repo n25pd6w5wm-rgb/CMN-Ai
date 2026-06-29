@@ -102,6 +102,8 @@ def build_app(state: AppState) -> FastAPI:
                         "input_eur": agent.cost_per_mtok.input_eur,
                         "output_eur": agent.cost_per_mtok.output_eur,
                     },
+                    # Coding agent reports its tool-loop status; others have none.
+                    "tools": getattr(agent, "tool_status", None),
                 }
                 for agent in state.agents.values()
             ]
