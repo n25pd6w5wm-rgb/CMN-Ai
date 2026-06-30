@@ -18,7 +18,7 @@ from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -102,6 +102,22 @@ def build_app(state: AppState) -> FastAPI:
 
         return _TEMPLATES.TemplateResponse(
             request, "index.html", {"css_v": _v("chat.css"), "js_v": _v("chat.js")}
+        )
+
+    @app.get("/manifest.webmanifest", include_in_schema=False)
+    async def manifest() -> FileResponse:
+        return FileResponse(
+            _WEB_DIR / "static" / "manifest.webmanifest",
+            media_type="application/manifest+json",
+        )
+
+    @app.get("/sw.js", include_in_schema=False)
+    async def service_worker() -> FileResponse:
+        # Served from root so the worker's scope covers the whole app.
+        return FileResponse(
+            _WEB_DIR / "static" / "sw.js",
+            media_type="application/javascript",
+            headers={"Service-Worker-Allowed": "/", "Cache-Control": "no-cache"},
         )
 
     @app.get("/api/models")

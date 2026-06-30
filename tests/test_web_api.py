@@ -271,3 +271,18 @@ def test_settings_info(tmp_path: Path) -> None:
     assert data["router_strategy"] in {"rule", "mlx", "ollama"}
     assert data["monthly_budget_eur"] == 30.0
     assert "router_optimize" in data
+
+
+def test_manifest_is_served(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    r = client.get("/manifest.webmanifest")
+    assert r.status_code == 200
+    assert r.json()["short_name"] == "cmn·ai"
+    assert r.json()["display"] == "standalone"
+
+
+def test_service_worker_served_at_root_scope(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    r = client.get("/sw.js")
+    assert r.status_code == 200
+    assert r.headers.get("service-worker-allowed") == "/"

@@ -148,4 +148,9 @@ def load_settings(profile: str | None = None, config_dir: Path | None = None) ->
     merged = _deep_merge(base, profile_data)
     merged.setdefault("profile", chosen)
     merged["profile"] = chosen
+    # Env overrides for hosted deploys (e.g. Render): point the local-model host at a
+    # remote Ollama (the Raspberry Pi exposed over the network) without editing YAML.
+    ollama_host = os.environ.get("OLLAMA_HOST")
+    if ollama_host:
+        merged["ollama_host"] = ollama_host
     return Settings.model_validate(merged)
