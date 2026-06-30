@@ -94,6 +94,22 @@ It asks for your Supabase project URL + service-role key, then for each model ke
 (blank = skip). If the `api_keys` table is missing, it prints the SQL (copied to your
 clipboard) and a link to the SQL editor. See `.env.example` for the manual path.
 
+## Accounts & hosting
+
+cmn-ai runs two ways:
+
+- **Local / open mode** — no Supabase env set: no login wall, single user. Ideal for dev
+  on the Mac (`uv run cmn-ai serve`).
+- **Hosted / multi-user** — set `SUPABASE_URL` + `SUPABASE_ANON_KEY`: a login/signup page
+  gates the app (Supabase Auth), conversations are per-user, and the session lives in an
+  http-only cookie.
+
+The app is an installable **PWA** (manifest + service worker) — "Add to Dock" in Safari or
+the install icon in Chrome. For the full distributed setup (GitHub → Render hosts the app,
+Supabase for accounts/keys, the Raspberry Pi runs the local model via `OLLAMA_HOST`), see
+**[`docs/DEPLOY.md`](docs/DEPLOY.md)**. Container build: `Dockerfile`; Render blueprint:
+`render.yaml`.
+
 ## Development
 
 ```bash
