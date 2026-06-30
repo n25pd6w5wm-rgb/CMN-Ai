@@ -176,7 +176,7 @@ def test_new_conversation_and_empty_list(tmp_path: Path) -> None:
     client = _client(tmp_path)
     assert client.get("/api/conversations").json()["conversations"] == []
     created = client.post("/api/conversations").json()
-    assert created["id"] >= 1
+    assert isinstance(created["id"], str) and created["id"]
     rows = client.get("/api/conversations").json()["conversations"]
     assert len(rows) == 1 and rows[0]["title"] == "New chat"
 

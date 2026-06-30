@@ -11,6 +11,7 @@ the budget governor refuses a paid call.
 from __future__ import annotations
 
 import json
+import os
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -35,8 +36,9 @@ from cmn_ai.config import Settings, load_settings
 from cmn_ai.core import Message, RouteDecision, Task
 from cmn_ai.orchestrator import Orchestrator
 from cmn_ai.router.interface import Router
-from cmn_ai.storage.conversations import ConversationStore
+from cmn_ai.storage.conversations import ConversationBackend, ConversationStore
 from cmn_ai.storage.decisions import DecisionLog
+from cmn_ai.storage.supabase_store import SupabaseConversationStore
 from cmn_ai.web.auth import AuthError, SupabaseAuth, build_auth_from_env
 
 SESSION_COOKIE = "cmn_session"
@@ -55,13 +57,13 @@ class AppState:
     governor: BudgetGovernor
     orchestrator: Orchestrator
     decision_log: DecisionLog | None = None
-    conversations: ConversationStore | None = None
+    conversations: ConversationBackend | None = None
     auth: SupabaseAuth | None = None
 
 
 class ChatRequest(BaseModel):
     prompt: str
-    conversation_id: int | None = None
+    conversation_id: str | None = None
 
 
 class RaiseRequest(BaseModel):
@@ -304,7 +306,7 @@ def build_app(state: AppState) -> FastAPI:
         decision = state.orchestrator.route(Task(prompt=req.prompt))
         return _decision_dict(decision)
 
-    def _require_store() -> ConversationStore:
+    def _require_store() -> ConversationBackend:
         if state.conversations is None:
             raise HTTPException(503, "conversation store unavailable")
         return state.conversations
@@ -323,7 +325,7 @@ def build_app(state: AppState) -> FastAPI:
         }
 
     @app.get("/api/conversations/{conversation_id}")
-    async def get_conversation(conversation_id: int, request: Request) -> dict[str, Any]:
+    async def get_conversation(conversation_id: str, request: Request) -> dict[str, Any]:
         store = _require_store()
         if not store.exists(conversation_id, _uid(request)):
             raise HTTPException(404, "conversation not found")
@@ -331,7 +333,7 @@ def build_app(state: AppState) -> FastAPI:
 
     @app.patch("/api/conversations/{conversation_id}")
     async def rename_conversation(
-        conversation_id: int, req: RenameRequest, request: Request
+        conversation_id: str, req: RenameRequest, request: Request
     ) -> dict[str, Any]:
         store = _require_store()
         if not store.exists(conversation_id, _uid(request)):
@@ -340,7 +342,7 @@ def build_app(state: AppState) -> FastAPI:
         return {"id": conversation_id, "title": req.title}
 
     @app.delete("/api/conversations/{conversation_id}")
-    async def delete_conversation(conversation_id: int, request: Request) -> dict[str, Any]:
+    async def delete_conversation(conversation_id: str, request: Request) -> dict[str, Any]:
         store = _require_store()
         if not store.exists(conversation_id, _uid(request)):
             raise HTTPException(404, "conversation not found")
@@ -353,7 +355,7 @@ def build_app(state: AppState) -> FastAPI:
         uid = _uid(request)
         now = datetime.now(UTC)
         # Resolve (or open) the conversation and gather prior turns as context.
-        cid: int | None = None
+        cid: str | None = None
         history: tuple[Message, ...] = ()
         if store is not None:
             cid = (
@@ -366,7 +368,7 @@ def build_app(state: AppState) -> FastAPI:
                 for m in store.messages(cid)
                 if m["role"] in ("user", "assistant")
             )
-            store.add_message(cid, "user", req.prompt, at=now)
+            store.add_message(cid, "user", req.prompt, at=now, user_id=uid)
         task = Task(prompt=req.prompt, history=history)
 
         async def stream() -> AsyncIterator[str]:
@@ -392,6 +394,7 @@ def build_app(state: AppState) -> FastAPI:
                     agent=response.agent,
                     model=response.model,
                     cost_eur=response.cost_eur,
+                    user_id=uid,
                 )
             yield _sse(
                 "done",
@@ -423,7 +426,14 @@ def build_state_from_settings(settings: Settings | None = None) -> AppState:
     agents = build_agents(settings, governor)
     router = build_router(settings)
     decision_log = DecisionLog(db_path)
-    conversations = ConversationStore(db_path)
+    # Hosted (multi-user) backend if Supabase is configured; else local SQLite.
+    supabase_url = os.environ.get("SUPABASE_URL")
+    supabase_key = os.environ.get("SUPABASE_KEY")
+    conversations: ConversationBackend = (
+        SupabaseConversationStore(supabase_url, supabase_key)
+        if supabase_url and supabase_key
+        else ConversationStore(db_path)
+    )
     orchestrator = Orchestrator(
         agents=agents, router=router, governor=governor, decision_log=decision_log
     )

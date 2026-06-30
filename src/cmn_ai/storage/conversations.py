@@ -13,7 +13,34 @@ import sqlite3
 import threading
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol, runtime_checkable
+
+
+@runtime_checkable
+class ConversationBackend(Protocol):
+    """Interface both the SQLite and Supabase conversation stores satisfy (str ids)."""
+
+    def create(
+        self, *, at: datetime, title: str = "New chat", user_id: str | None = None
+    ) -> str: ...
+    def list_all(self, user_id: str | None = None) -> list[dict[str, Any]]: ...
+    def exists(self, conversation_id: str, user_id: str | None = None) -> bool: ...
+    def messages(self, conversation_id: str) -> list[dict[str, Any]]: ...
+    def add_message(
+        self,
+        conversation_id: str,
+        role: str,
+        content: str,
+        *,
+        at: datetime,
+        agent: str | None = None,
+        model: str | None = None,
+        cost_eur: float | None = None,
+        user_id: str | None = None,
+    ) -> None: ...
+    def rename(self, conversation_id: str, title: str) -> None: ...
+    def delete(self, conversation_id: str) -> None: ...
+
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS conversations (
@@ -69,7 +96,7 @@ class ConversationStore:
 
     def create(
         self, *, at: datetime, title: str = _DEFAULT_TITLE, user_id: str | None = None
-    ) -> int:
+    ) -> str:
         ts = at.timestamp()
         with self._lock:
             cur = self._conn.execute(
@@ -78,7 +105,7 @@ class ConversationStore:
                 (user_id, title, ts, ts),
             )
             self._conn.commit()
-            return int(cur.lastrowid or 0)
+            return str(cur.lastrowid or 0)
 
     def list_all(self, user_id: str | None = None) -> list[dict[str, Any]]:
         """Conversations, most recently active first, with their message counts.
@@ -96,9 +123,12 @@ class ConversationStore:
                 f"{where} GROUP BY c.id ORDER BY c.updated_at DESC",
                 params,
             ).fetchall()
-            return [dict(r) for r in rows]
+            result = [dict(r) for r in rows]
+            for row in result:
+                row["id"] = str(row["id"])  # uniform string ids across backends
+            return result
 
-    def exists(self, conversation_id: int, user_id: str | None = None) -> bool:
+    def exists(self, conversation_id: str, user_id: str | None = None) -> bool:
         """Whether the conversation exists (and, with ``user_id``, belongs to that user)."""
         query = "SELECT 1 FROM conversations WHERE id = ?"
         params: tuple[Any, ...] = (conversation_id,)
@@ -108,7 +138,7 @@ class ConversationStore:
         with self._lock:
             return self._conn.execute(query, params).fetchone() is not None
 
-    def messages(self, conversation_id: int) -> list[dict[str, Any]]:
+    def messages(self, conversation_id: str) -> list[dict[str, Any]]:
         with self._lock:
             rows = self._conn.execute(
                 "SELECT role, content, agent, model, cost_eur, ts FROM messages "
@@ -119,7 +149,7 @@ class ConversationStore:
 
     def add_message(
         self,
-        conversation_id: int,
+        conversation_id: str,
         role: str,
         content: str,
         *,
@@ -127,8 +157,13 @@ class ConversationStore:
         agent: str | None = None,
         model: str | None = None,
         cost_eur: float | None = None,
+        user_id: str | None = None,
     ) -> None:
-        """Append a message; bump the conversation's updated_at and auto-title it."""
+        """Append a message; bump the conversation's updated_at and auto-title it.
+
+        ``user_id`` is accepted for interface parity with the Supabase store but unused
+        here (the SQLite backend is single-user / open mode).
+        """
         ts = at.timestamp()
         with self._lock:
             self._conn.execute(
@@ -151,7 +186,7 @@ class ConversationStore:
                     )
             self._conn.commit()
 
-    def rename(self, conversation_id: int, title: str) -> None:
+    def rename(self, conversation_id: str, title: str) -> None:
         clean = " ".join(title.split())[:_TITLE_MAX] or _DEFAULT_TITLE
         with self._lock:
             self._conn.execute(
@@ -159,7 +194,7 @@ class ConversationStore:
             )
             self._conn.commit()
 
-    def delete(self, conversation_id: int) -> None:
+    def delete(self, conversation_id: str) -> None:
         with self._lock:
             self._conn.execute("DELETE FROM messages WHERE conversation_id = ?", (conversation_id,))
             self._conn.execute("DELETE FROM conversations WHERE id = ?", (conversation_id,))

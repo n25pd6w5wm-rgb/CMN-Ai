@@ -79,7 +79,7 @@ def test_rename_and_exists(tmp_path: Path) -> None:
     store.rename(cid, "Pi deployment notes")
     assert store.list_all()[0]["title"] == "Pi deployment notes"
     assert store.exists(cid) is True
-    assert store.exists(9999) is False
+    assert store.exists("9999") is False
 
 
 def test_delete_removes_conversation_and_messages(tmp_path: Path) -> None:
