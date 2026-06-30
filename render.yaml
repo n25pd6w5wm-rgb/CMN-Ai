@@ -1,0 +1,31 @@
+# Render Blueprint for the cmn-ai web app. Deploy: push to GitHub, then in Render
+# "New + → Blueprint" and point it at this repo. Fill the secret env vars in the
+# dashboard (sync:false means Render prompts for them and never stores them in git).
+#
+# Architecture: this service is the hosted frontend/orchestrator. The free local
+# model runs on your Raspberry Pi — set OLLAMA_HOST to the Pi's reachable URL
+# (e.g. a Tailscale Funnel / Cloudflare Tunnel / ngrok address). Accounts + API
+# keys live in Supabase.
+services:
+  - type: web
+    name: cmn-ai
+    runtime: docker
+    plan: starter # needed for the persistent disk below; use "free" without a disk
+    healthCheckPath: /api/budget
+    envVars:
+      - key: CMN_AI_PROFILE
+        value: render
+      - key: OLLAMA_HOST # the Raspberry Pi's reachable Ollama URL
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY # public key for the login/signup page
+        sync: false
+      - key: SUPABASE_KEY # service-role key, loads model API keys at startup
+        sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+    disk:
+      name: cmn-data
+      mountPath: /data
+      sizeGB: 1

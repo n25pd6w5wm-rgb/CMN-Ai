@@ -1,0 +1,15 @@
+# Render (hosted frontend) profile, selected via CMN_AI_PROFILE=render.
+#
+# The local model runs on the Raspberry Pi and is reached over the network via the
+# OLLAMA_HOST env var (see render.yaml). Routing uses the deterministic rule router so
+# the container needs no model files; switch to "ollama" if the Pi serves the trained
+# cmn-dirigent. The database lives on the mounted persistent disk at /data.
+router:
+  strategy: rule
+
+storage:
+  db_path: "/data/cmn.db"
+
+agents:
+  local:
+    model: "gemma4:latest"
