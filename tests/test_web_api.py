@@ -286,3 +286,93 @@ def test_service_worker_served_at_root_scope(tmp_path: Path) -> None:
     r = client.get("/sw.js")
     assert r.status_code == 200
     assert r.headers.get("service-worker-allowed") == "/"
+
+
+# ---------- authentication (gating, login flow, per-user isolation) ----------
+
+from typing import cast  # noqa: E402
+
+from cmn_ai.web.auth import AuthError, SupabaseAuth  # noqa: E402
+
+
+class FakeAuth:
+    """In-memory stand-in for SupabaseAuth (no network)."""
+
+    def __init__(self) -> None:
+        self.users: dict[str, tuple[str, dict[str, object]]] = {
+            "a@b.de": ("secret1", {"id": "u1", "email": "a@b.de"})
+        }
+        self.tokens: dict[str, dict[str, object]] = {}
+
+    async def sign_in(self, email: str, password: str) -> dict[str, object]:
+        rec = self.users.get(email)
+        if not rec or rec[0] != password:
+            raise AuthError("Invalid login credentials")
+        token = f"tok-{rec[1]['id']}"
+        self.tokens[token] = rec[1]
+        return {"access_token": token, "user": rec[1]}
+
+    async def sign_up(self, email: str, password: str) -> dict[str, object]:
+        uid = f"u{len(self.users) + 1}"
+        user: dict[str, object] = {"id": uid, "email": email}
+        self.users[email] = (password, user)
+        token = f"tok-{uid}"
+        self.tokens[token] = user
+        return {"access_token": token, "user": user}
+
+    async def get_user(self, token: str | None) -> dict[str, object] | None:
+        return self.tokens.get(token) if token else None
+
+
+def _auth_client(tmp_path: Path) -> tuple[TestClient, FakeAuth]:
+    base = _client(tmp_path)
+    state = base.app.state.cmn  # type: ignore[attr-defined]
+    fake = FakeAuth()
+    state.auth = cast(SupabaseAuth, fake)
+    return base, fake
+
+
+def test_unauthenticated_root_redirects_to_login(tmp_path: Path) -> None:
+    client, _ = _auth_client(tmp_path)
+    r = client.get("/", follow_redirects=False)
+    assert r.status_code == 302
+    assert r.headers["location"] == "/login"
+
+
+def test_unauthenticated_api_is_401(tmp_path: Path) -> None:
+    client, _ = _auth_client(tmp_path)
+    assert client.get("/api/conversations").status_code == 401
+
+
+def test_healthz_is_open(tmp_path: Path) -> None:
+    client, _ = _auth_client(tmp_path)
+    assert client.get("/healthz").json() == {"ok": True}
+
+
+def test_login_then_access(tmp_path: Path) -> None:
+    client, _ = _auth_client(tmp_path)
+    r = client.post("/api/auth/login", json={"email": "a@b.de", "password": "secret1"})
+    assert r.status_code == 200
+    assert r.json()["user"]["email"] == "a@b.de"
+    # cookie now set on the client → root serves the app
+    assert client.get("/", follow_redirects=False).status_code == 200
+    assert client.get("/api/conversations").status_code == 200
+
+
+def test_bad_login_is_401(tmp_path: Path) -> None:
+    client, _ = _auth_client(tmp_path)
+    r = client.post("/api/auth/login", json={"email": "a@b.de", "password": "wrong"})
+    assert r.status_code == 401
+    assert "Invalid login" in r.json()["detail"]
+
+
+def test_conversations_are_isolated_per_user(tmp_path: Path) -> None:
+    client, _ = _auth_client(tmp_path)
+    # user A logs in and creates a conversation
+    client.post("/api/auth/login", json={"email": "a@b.de", "password": "secret1"})
+    client.post("/api/conversations")
+    assert len(client.get("/api/conversations").json()["conversations"]) == 1
+    # user B signs up → sees none of A's conversations
+    client.post("/api/auth/logout")
+    client.post("/api/auth/signup", json={"email": "b@b.de", "password": "secret2"})
+    assert client.get("/api/conversations").json()["conversations"] == []

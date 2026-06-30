@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import cast
 
 import httpx
 import respx
@@ -71,7 +72,8 @@ async def test_tool_loop_reads_file_then_answers(tmp_path: Path) -> None:
     # Two round-trips: the tool call and the final answer.
     assert len(bodies) == 2
     # First request advertised the read-only tools.
-    assert {t["name"] for t in bodies[0]["tools"]} == {"read_file", "list_dir", "search"}  # type: ignore[union-attr]
+    tools0 = cast(list[dict[str, str]], bodies[0]["tools"])
+    assert {t["name"] for t in tools0} == {"read_file", "list_dir", "search"}
     # Second request fed the tool result (the file contents) back to the model.
     follow_up = bodies[1]["messages"][-1]  # type: ignore[index]
     tool_result = follow_up["content"][0]
@@ -110,7 +112,8 @@ async def test_tool_loop_advertises_write_tools_when_writable(tmp_path: Path) ->
 
     await _agent(WorkspaceTools(tmp_path, writable=True)).run(Task(prompt="make a change"))
 
-    assert {t["name"] for t in bodies[0]["tools"]} == {  # type: ignore[union-attr]
+    tools0 = cast(list[dict[str, str]], bodies[0]["tools"])
+    assert {t["name"] for t in tools0} == {
         "read_file",
         "list_dir",
         "search",

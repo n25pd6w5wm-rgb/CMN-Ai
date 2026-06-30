@@ -11,14 +11,20 @@ the budget governor refuses a paid call.
 from __future__ import annotations
 
 import json
-from collections.abc import AsyncIterator, Mapping
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, HTMLResponse, StreamingResponse
+from fastapi import FastAPI, HTTPException, Request, Response
+from fastapi.responses import (
+    FileResponse,
+    HTMLResponse,
+    JSONResponse,
+    RedirectResponse,
+    StreamingResponse,
+)
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -31,6 +37,9 @@ from cmn_ai.orchestrator import Orchestrator
 from cmn_ai.router.interface import Router
 from cmn_ai.storage.conversations import ConversationStore
 from cmn_ai.storage.decisions import DecisionLog
+from cmn_ai.web.auth import AuthError, SupabaseAuth, build_auth_from_env
+
+SESSION_COOKIE = "cmn_session"
 
 _WEB_DIR = Path(__file__).resolve().parent
 _TEMPLATES = Jinja2Templates(directory=str(_WEB_DIR / "templates"))
@@ -47,6 +56,7 @@ class AppState:
     orchestrator: Orchestrator
     decision_log: DecisionLog | None = None
     conversations: ConversationStore | None = None
+    auth: SupabaseAuth | None = None
 
 
 class ChatRequest(BaseModel):
@@ -60,6 +70,23 @@ class RaiseRequest(BaseModel):
 
 class RenameRequest(BaseModel):
     title: str
+
+
+class AuthRequest(BaseModel):
+    email: str
+    password: str
+
+
+def _set_session(response: Response, token: str, *, secure: bool) -> None:
+    response.set_cookie(
+        SESSION_COOKIE,
+        token,
+        httponly=True,
+        samesite="lax",
+        secure=secure,
+        max_age=60 * 60 * 24 * 14,
+        path="/",
+    )
 
 
 def _sse(event: str, data: dict[str, Any]) -> str:
@@ -91,6 +118,93 @@ def build_app(state: AppState) -> FastAPI:
     static_dir = _WEB_DIR / "static"
     if static_dir.exists():
         app.mount("/static", StaticFiles(directory=str(static_dir)), name="static")
+
+    def _uid(request: Request) -> str | None:
+        """The logged-in user's id (multi-user mode), or None (open mode)."""
+        user = getattr(request.state, "user", None)
+        return str(user["id"]) if user else None
+
+    # Paths reachable without a session (so the login wall + healthcheck + PWA work).
+    _open_paths = {"/login", "/healthz", "/manifest.webmanifest", "/sw.js", "/favicon.ico"}
+
+    @app.middleware("http")
+    async def auth_gate(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        if state.auth is None:  # open single-user mode
+            return await call_next(request)
+        path = request.url.path
+        if path in _open_paths or path.startswith("/static") or path.startswith("/api/auth"):
+            return await call_next(request)
+        token = request.cookies.get(SESSION_COOKIE)
+        user = await state.auth.get_user(token) if token else None
+        if user is None:
+            if path.startswith("/api/"):
+                return JSONResponse({"detail": "unauthenticated"}, status_code=401)
+            return RedirectResponse("/login", status_code=302)
+        request.state.user = user
+        return await call_next(request)
+
+    @app.get("/healthz", include_in_schema=False)
+    async def healthz() -> dict[str, Any]:
+        return {"ok": True}
+
+    @app.get("/login", response_class=HTMLResponse, include_in_schema=False)
+    async def login_page(request: Request) -> Response:
+        if state.auth is None:  # no auth configured → nothing to log into
+            return RedirectResponse("/", status_code=302)
+        token = request.cookies.get(SESSION_COOKIE)
+        if token and await state.auth.get_user(token):
+            return RedirectResponse("/", status_code=302)
+
+        def _v(name: str) -> int:
+            asset = _WEB_DIR / "static" / name
+            return int(asset.stat().st_mtime) if asset.exists() else 0
+
+        return _TEMPLATES.TemplateResponse(request, "login.html", {"css_v": _v("chat.css")})
+
+    @app.post("/api/auth/login")
+    async def auth_login(req: AuthRequest, request: Request, response: Response) -> dict[str, Any]:
+        if state.auth is None:
+            raise HTTPException(400, "authentication is not configured")
+        try:
+            session = await state.auth.sign_in(req.email, req.password)
+        except AuthError as exc:
+            raise HTTPException(401, str(exc)) from exc
+        token = session.get("access_token")
+        if not token:
+            raise HTTPException(401, "no access token returned")
+        _set_session(response, str(token), secure=request.url.scheme == "https")
+        return {"user": {"email": (session.get("user") or {}).get("email")}}
+
+    @app.post("/api/auth/signup")
+    async def auth_signup(req: AuthRequest, request: Request, response: Response) -> dict[str, Any]:
+        if state.auth is None:
+            raise HTTPException(400, "authentication is not configured")
+        try:
+            result = await state.auth.sign_up(req.email, req.password)
+        except AuthError as exc:
+            raise HTTPException(400, str(exc)) from exc
+        token = result.get("access_token")
+        if token:  # confirmations disabled → already signed in
+            _set_session(response, str(token), secure=request.url.scheme == "https")
+            return {"user": {"email": (result.get("user") or {}).get("email")}, "signed_in": True}
+        return {"signed_in": False, "confirm_email": True}
+
+    @app.post("/api/auth/logout")
+    async def auth_logout(response: Response) -> dict[str, Any]:
+        response.delete_cookie(SESSION_COOKIE, path="/")
+        return {"ok": True}
+
+    @app.get("/api/auth/me")
+    async def auth_me(request: Request) -> dict[str, Any]:
+        if state.auth is None:
+            return {"user": None, "auth_enabled": False}
+        token = request.cookies.get(SESSION_COOKIE)
+        user = await state.auth.get_user(token) if token else None
+        if user is None:
+            return {"user": None, "auth_enabled": True}
+        return {"user": {"email": user.get("email")}, "auth_enabled": True}
 
     @app.get("/", response_class=HTMLResponse)
     async def index(request: Request) -> HTMLResponse:
@@ -196,39 +310,47 @@ def build_app(state: AppState) -> FastAPI:
         return state.conversations
 
     @app.get("/api/conversations")
-    async def list_conversations() -> dict[str, Any]:
+    async def list_conversations(request: Request) -> dict[str, Any]:
         store = state.conversations
-        return {"conversations": store.list_all() if store else []}
+        return {"conversations": store.list_all(_uid(request)) if store else []}
 
     @app.post("/api/conversations")
-    async def new_conversation() -> dict[str, Any]:
+    async def new_conversation(request: Request) -> dict[str, Any]:
         store = _require_store()
-        return {"id": store.create(at=datetime.now(UTC)), "title": "New chat"}
+        return {
+            "id": store.create(at=datetime.now(UTC), user_id=_uid(request)),
+            "title": "New chat",
+        }
 
     @app.get("/api/conversations/{conversation_id}")
-    async def get_conversation(conversation_id: int) -> dict[str, Any]:
+    async def get_conversation(conversation_id: int, request: Request) -> dict[str, Any]:
         store = _require_store()
-        if not store.exists(conversation_id):
+        if not store.exists(conversation_id, _uid(request)):
             raise HTTPException(404, "conversation not found")
         return {"id": conversation_id, "messages": store.messages(conversation_id)}
 
     @app.patch("/api/conversations/{conversation_id}")
-    async def rename_conversation(conversation_id: int, req: RenameRequest) -> dict[str, Any]:
+    async def rename_conversation(
+        conversation_id: int, req: RenameRequest, request: Request
+    ) -> dict[str, Any]:
         store = _require_store()
-        if not store.exists(conversation_id):
+        if not store.exists(conversation_id, _uid(request)):
             raise HTTPException(404, "conversation not found")
         store.rename(conversation_id, req.title)
         return {"id": conversation_id, "title": req.title}
 
     @app.delete("/api/conversations/{conversation_id}")
-    async def delete_conversation(conversation_id: int) -> dict[str, Any]:
+    async def delete_conversation(conversation_id: int, request: Request) -> dict[str, Any]:
         store = _require_store()
+        if not store.exists(conversation_id, _uid(request)):
+            raise HTTPException(404, "conversation not found")
         store.delete(conversation_id)
         return {"ok": True}
 
     @app.post("/api/chat")
-    async def chat(req: ChatRequest) -> StreamingResponse:
+    async def chat(req: ChatRequest, request: Request) -> StreamingResponse:
         store = state.conversations
+        uid = _uid(request)
         now = datetime.now(UTC)
         # Resolve (or open) the conversation and gather prior turns as context.
         cid: int | None = None
@@ -236,8 +358,8 @@ def build_app(state: AppState) -> FastAPI:
         if store is not None:
             cid = (
                 req.conversation_id
-                if req.conversation_id and store.exists(req.conversation_id)
-                else store.create(at=now)
+                if req.conversation_id and store.exists(req.conversation_id, uid)
+                else store.create(at=now, user_id=uid)
             )
             history = tuple(
                 Message(role=m["role"], content=m["content"])
@@ -313,6 +435,7 @@ def build_state_from_settings(settings: Settings | None = None) -> AppState:
         orchestrator=orchestrator,
         decision_log=decision_log,
         conversations=conversations,
+        auth=build_auth_from_env(),
     )
 
 

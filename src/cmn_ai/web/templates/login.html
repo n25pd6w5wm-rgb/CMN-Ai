@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>cmn·ai — sign in</title>
+    <link rel="icon" href="/static/icons/icon-192.png" />
+    <meta name="theme-color" content="#0c0d10" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/chat.css?v={{ css_v }}" />
+  </head>
+  <body>
+    <div class="auth-wrap">
+      <div class="auth-card">
+        <div class="auth-brand">
+          <div class="brand-mark">cmn<span>·</span>ai</div>
+          <p class="brand-sub">the conductor</p>
+        </div>
+
+        <div class="auth-tabs">
+          <button class="auth-tab active" data-mode="login" type="button">Log in</button>
+          <button class="auth-tab" data-mode="signup" type="button">Sign up</button>
+        </div>
+
+        <form id="auth-form">
+          <input id="email" type="email" placeholder="Email" autocomplete="email" required />
+          <input
+            id="password"
+            type="password"
+            placeholder="Password"
+            autocomplete="current-password"
+            minlength="6"
+            required
+          />
+          <button type="submit" id="auth-submit">Log in</button>
+          <p class="auth-msg" id="auth-msg" role="status"></p>
+        </form>
+      </div>
+      <p class="auth-foot">Cost-governed multi-AI · local-first</p>
+    </div>
+
+    <script>
+      "use strict";
+      let mode = "login";
+      const $ = (s) => document.querySelector(s);
+      const submit = $("#auth-submit");
+      const msg = $("#auth-msg");
+
+      document.querySelectorAll(".auth-tab").forEach((tab) => {
+        tab.addEventListener("click", () => {
+          mode = tab.dataset.mode;
+          document.querySelectorAll(".auth-tab").forEach((t) => t.classList.remove("active"));
+          tab.classList.add("active");
+          submit.textContent = mode === "login" ? "Log in" : "Create account";
+          $("#password").autocomplete = mode === "login" ? "current-password" : "new-password";
+          msg.textContent = "";
+          msg.className = "auth-msg";
+        });
+      });
+
+      $("#auth-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        msg.textContent = "";
+        msg.className = "auth-msg";
+        submit.disabled = true;
+        const body = JSON.stringify({ email: $("#email").value, password: $("#password").value });
+        try {
+          const resp = await fetch(`/api/auth/${mode}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body,
+          });
+          const data = await resp.json().catch(() => ({}));
+          if (!resp.ok) {
+            msg.textContent = data.detail || "Something went wrong.";
+            msg.className = "auth-msg error";
+          } else if (mode === "signup" && data.confirm_email) {
+            msg.textContent = "Check your email to confirm your account, then log in.";
+            msg.className = "auth-msg ok";
+          } else {
+            window.location.href = "/";
+            return;
+          }
+        } catch (err) {
+          msg.textContent = "Network error — please try again.";
+          msg.className = "auth-msg error";
+        }
+        submit.disabled = false;
+      });
+    </script>
+  </body>
+</html>

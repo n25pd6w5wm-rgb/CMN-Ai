@@ -18,6 +18,7 @@ from typing import Any
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS conversations (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id    TEXT,
     title      TEXT NOT NULL,
     created_at REAL NOT NULL,
     updated_at REAL NOT NULL
@@ -57,35 +58,55 @@ class ConversationStore:
         with self._lock:
             self._conn.execute("PRAGMA foreign_keys = ON")
             self._conn.executescript(_SCHEMA)
+            self._migrate()
             self._conn.commit()
 
-    def create(self, *, at: datetime, title: str = _DEFAULT_TITLE) -> int:
+    def _migrate(self) -> None:
+        """Add columns introduced after a database was first created (e.g. user_id)."""
+        cols = {r["name"] for r in self._conn.execute("PRAGMA table_info(conversations)")}
+        if "user_id" not in cols:
+            self._conn.execute("ALTER TABLE conversations ADD COLUMN user_id TEXT")
+
+    def create(
+        self, *, at: datetime, title: str = _DEFAULT_TITLE, user_id: str | None = None
+    ) -> int:
         ts = at.timestamp()
         with self._lock:
             cur = self._conn.execute(
-                "INSERT INTO conversations (title, created_at, updated_at) VALUES (?, ?, ?)",
-                (title, ts, ts),
+                "INSERT INTO conversations (user_id, title, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?)",
+                (user_id, title, ts, ts),
             )
             self._conn.commit()
             return int(cur.lastrowid or 0)
 
-    def list_all(self) -> list[dict[str, Any]]:
-        """Conversations, most recently active first, with their message counts."""
+    def list_all(self, user_id: str | None = None) -> list[dict[str, Any]]:
+        """Conversations, most recently active first, with their message counts.
+
+        With ``user_id`` set, only that user's conversations are returned (multi-user
+        mode); without it, all conversations are returned (open single-user mode).
+        """
+        where = "WHERE c.user_id = ?" if user_id is not None else ""
+        params = (user_id,) if user_id is not None else ()
         with self._lock:
             rows = self._conn.execute(
                 "SELECT c.id, c.title, c.created_at, c.updated_at, "
                 "       COUNT(m.id) AS message_count "
                 "FROM conversations c LEFT JOIN messages m ON m.conversation_id = c.id "
-                "GROUP BY c.id ORDER BY c.updated_at DESC"
+                f"{where} GROUP BY c.id ORDER BY c.updated_at DESC",
+                params,
             ).fetchall()
             return [dict(r) for r in rows]
 
-    def exists(self, conversation_id: int) -> bool:
+    def exists(self, conversation_id: int, user_id: str | None = None) -> bool:
+        """Whether the conversation exists (and, with ``user_id``, belongs to that user)."""
+        query = "SELECT 1 FROM conversations WHERE id = ?"
+        params: tuple[Any, ...] = (conversation_id,)
+        if user_id is not None:
+            query += " AND user_id = ?"
+            params = (conversation_id, user_id)
         with self._lock:
-            row = self._conn.execute(
-                "SELECT 1 FROM conversations WHERE id = ?", (conversation_id,)
-            ).fetchone()
-            return row is not None
+            return self._conn.execute(query, params).fetchone() is not None
 
     def messages(self, conversation_id: int) -> list[dict[str, Any]]:
         with self._lock:

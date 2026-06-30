@@ -113,6 +113,17 @@ def test_updated_at_advances_with_activity(tmp_path: Path) -> None:
     store = ConversationStore(tmp_path / "c.db")
     cid = store.create(at=_at(0))
     before = store.list_all()[0]["updated_at"]
-    store.add_message(cid, "user", "hi", at=_at(0) + timedelta(minutes=10))  # type: ignore[operator]
+    store.add_message(cid, "user", "hi", at=_at(0) + timedelta(minutes=10))
     after = store.list_all()[0]["updated_at"]
     assert after > before
+
+
+def test_user_scoping_isolates_conversations(tmp_path: Path) -> None:
+    store = ConversationStore(tmp_path / "c.db")
+    a = store.create(at=_at(0), user_id="u1")
+    store.create(at=_at(1), user_id="u2")
+    assert [r["id"] for r in store.list_all(user_id="u1")] == [a]
+    assert store.exists(a, user_id="u1") is True
+    assert store.exists(a, user_id="u2") is False
+    # open mode (no user) still sees everything
+    assert len(store.list_all()) == 2

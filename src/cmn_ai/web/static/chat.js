@@ -126,6 +126,11 @@ async function sendMessage(text) {
     return;
   }
 
+  if (resp.status === 401) {
+    window.location.href = "/login";
+    return;
+  }
+
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
@@ -297,11 +302,24 @@ async function raiseBudget() {
 }
 
 // ---------- settings ----------
+async function logout() {
+  await fetch("/api/auth/logout", { method: "POST" });
+  window.location.href = "/login";
+}
+
 async function openSettings() {
-  const [settings, models] = await Promise.all([
+  const [settings, models, me] = await Promise.all([
     (await fetch("/api/settings")).json(),
     (await fetch("/api/models")).json(),
+    (await fetch("/api/auth/me")).json().catch(() => ({ user: null })),
   ]);
+  const account = $("#account-section");
+  if (me.user && me.user.email) {
+    $("#set-email").textContent = me.user.email;
+    account.hidden = false;
+  } else {
+    account.hidden = true;
+  }
   $("#set-profile").textContent = settings.profile;
   $("#set-strategy").textContent = settings.router_strategy;
   $("#set-optimize").textContent = settings.router_optimize ? "on" : "off";
@@ -361,6 +379,7 @@ $("#settings-overlay").addEventListener("click", (e) => {
   if (e.target.id === "settings-overlay") closeSettings();
 });
 $("#set-budget-save").addEventListener("click", saveBudget);
+$("#logout-btn").addEventListener("click", logout);
 
 loadBudget();
 loadModels();
