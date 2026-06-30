@@ -75,9 +75,12 @@ ollama pull gemma4        # bzw. dein Modellname
    - `ANTHROPIC_API_KEY` (optional, falls nicht über Supabase)
 4. Deploy. Health-Check ist `/healthz`. Beim ersten Aufruf erscheint die **Login-Seite**.
 
-> Die persistente DB (Chat-Verlauf) liegt auf dem Render-Disk unter `/data` — das braucht
-> einen kostenpflichtigen Plan (in `render.yaml` `plan: starter`). Ohne Disk ist der Verlauf
-> flüchtig; für echten Mehrbenutzer-Betrieb wandert er später nach Supabase/Postgres.
+> **Chat-Verlauf:** Wenn `SUPABASE_URL` + `SUPABASE_KEY` gesetzt sind, speichert die App
+> Konversationen + Nachrichten **direkt in Supabase** (Tabellen `cmn_conversations` /
+> `cmn_messages`, pro Nutzer) — kein Disk nötig, echt mehrbenutzerfähig und persistent über
+> Render-Neustarts. Der Render-Disk unter `/data` hält dann nur noch das lokale
+> Decision-Log/Ledger (SQLite); ohne Supabase fällt auch der Verlauf auf SQLite/Disk zurück.
+> (Spend/Budget pro Nutzer über `cmn_spend` / `cmn_user_settings` ist der nächste Schritt.)
 
 ---
 
