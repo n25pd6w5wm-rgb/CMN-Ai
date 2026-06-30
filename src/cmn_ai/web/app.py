@@ -147,6 +147,16 @@ def build_app(state: AppState) -> FastAPI:
         state.governor.raise_budget(req.monthly_budget_eur)
         return {"monthly_budget_eur": req.monthly_budget_eur}
 
+    @app.get("/api/settings")
+    async def settings_info() -> dict[str, Any]:
+        s = state.settings
+        return {
+            "profile": s.profile,
+            "router_strategy": s.router.strategy,
+            "router_optimize": s.router.optimize,
+            "monthly_budget_eur": state.governor.status().monthly_budget_eur,
+        }
+
     @app.get("/api/analytics")
     async def analytics() -> dict[str, Any]:
         if state.decision_log is None:

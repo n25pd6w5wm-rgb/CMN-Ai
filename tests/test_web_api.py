@@ -262,3 +262,12 @@ def test_rename_and_delete_conversation(tmp_path: Path) -> None:
 def test_get_missing_conversation_is_404(tmp_path: Path) -> None:
     client = _client(tmp_path)
     assert client.get("/api/conversations/9999").status_code == 404
+
+
+def test_settings_info(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    data = client.get("/api/settings").json()
+    assert data["profile"] == "mac"
+    assert data["router_strategy"] in {"rule", "mlx", "ollama"}
+    assert data["monthly_budget_eur"] == 30.0
+    assert "router_optimize" in data

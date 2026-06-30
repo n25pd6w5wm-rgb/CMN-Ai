@@ -1,28 +1,27 @@
-// cmn·ai chat client — POST/SSE streaming, budget meter, route transparency.
+// cmn·ai chat client — streaming chat, persistent conversations, settings.
 "use strict";
 
 const $ = (sel) => document.querySelector(sel);
 const transcript = $("#transcript");
 const composer = $("#composer");
 const promptEl = $("#prompt");
-const sendBtn = $("#send");
 
 const CAP_LABEL = { chat: "chat", code: "code", research: "research", multimodal: "vision" };
+let currentConversationId = null;
 
 function eur(n) {
-  if (n === 0) return "free";
+  if (n === 0 || n === null || n === undefined) return "free";
   return "€" + Number(n).toFixed(n < 0.1 ? 4 : 2);
 }
-
 function scrollDown() {
   transcript.scrollTop = transcript.scrollHeight;
 }
-
 function clearWelcome() {
   const w = transcript.querySelector(".welcome");
   if (w) w.remove();
 }
 
+// ---------- message rendering ----------
 function addUserMessage(text) {
   clearWelcome();
   const wrap = document.createElement("div");
@@ -53,8 +52,7 @@ function addAssistantShell() {
 
 function renderChip(chip, route) {
   const cap = CAP_LABEL[route.classification.capability] || route.classification.capability;
-  const isFree = route.estimated_eur === 0;
-  chip.classList.toggle("free", isFree);
+  if (route.estimated_eur === 0) chip.classList.add("free");
   const parts = [
     `<span class="cap">${cap}</span>`,
     `<span class="sep">→</span>`,
@@ -67,12 +65,31 @@ function renderChip(chip, route) {
 }
 
 function finalizeChip(chip, done) {
-  // append the actual measured cost once the answer completes
   const cost = document.createElement("span");
   cost.className = "cost";
   cost.innerHTML = `<span class="sep">·</span> ${eur(done.cost_eur)}`;
   if (done.cost_eur === 0) chip.classList.add("free");
   chip.appendChild(cost);
+}
+
+// render a stored assistant message (history has agent/model/cost, no classification)
+function addStoredAssistant(msg) {
+  const wrap = document.createElement("div");
+  wrap.className = "msg msg-ai";
+  if (msg.agent) {
+    const chip = document.createElement("div");
+    chip.className = "chip" + (msg.cost_eur ? "" : " free");
+    const parts = [`<span class="who">${msg.agent}</span>`];
+    if (msg.model) parts.push(`<span class="sep">·</span><span>${msg.model}</span>`);
+    parts.push(`<span class="cost"><span class="sep">·</span> ${eur(msg.cost_eur)}</span>`);
+    chip.innerHTML = parts.join(" ");
+    wrap.appendChild(chip);
+  }
+  const bubble = document.createElement("div");
+  bubble.className = "bubble";
+  bubble.textContent = msg.content;
+  wrap.appendChild(bubble);
+  transcript.appendChild(wrap);
 }
 
 function renderBlocked(wrap, bubble, info) {
@@ -91,6 +108,7 @@ function renderBlocked(wrap, bubble, info) {
   scrollDown();
 }
 
+// ---------- streaming a turn ----------
 async function sendMessage(text) {
   addUserMessage(text);
   const { wrap, chip, bubble } = addAssistantShell();
@@ -100,7 +118,7 @@ async function sendMessage(text) {
     resp = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: text }),
+      body: JSON.stringify({ prompt: text, conversation_id: currentConversationId }),
     });
   } catch (e) {
     bubble.classList.remove("cursor");
@@ -111,20 +129,18 @@ async function sendMessage(text) {
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
-
   while (true) {
     const { value, done } = await reader.read();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
     const events = buffer.split("\n\n");
-    buffer = events.pop(); // keep incomplete tail
-    for (const block of events) {
-      handleEvent(block, { wrap, chip, bubble });
-    }
+    buffer = events.pop();
+    for (const block of events) handleEvent(block, { wrap, chip, bubble });
   }
   bubble.classList.remove("cursor");
   loadBudget();
   loadAnalytics();
+  loadConversations();
 }
 
 function handleEvent(block, ctx) {
@@ -136,8 +152,9 @@ function handleEvent(block, ctx) {
   }
   if (!data) return;
   const payload = JSON.parse(data);
-
-  if (event === "route") {
+  if (event === "conversation") {
+    currentConversationId = payload.id;
+  } else if (event === "route") {
     renderChip(ctx.chip, payload);
   } else if (event === "delta") {
     ctx.bubble.textContent += payload.text;
@@ -149,7 +166,65 @@ function handleEvent(block, ctx) {
   }
 }
 
-// ---------- budget + roster ----------
+// ---------- conversations (chat history) ----------
+async function loadConversations() {
+  const data = await (await fetch("/api/conversations")).json();
+  const host = $("#chats");
+  host.innerHTML = "";
+  if (!data.conversations.length) {
+    host.innerHTML = `<li class="chats-empty">No conversations yet.</li>`;
+    return;
+  }
+  for (const c of data.conversations) {
+    const li = document.createElement("li");
+    li.className = "chat-item" + (c.id === currentConversationId ? " active" : "");
+    const title = document.createElement("button");
+    title.className = "chat-title";
+    title.textContent = c.title;
+    title.title = c.title;
+    title.addEventListener("click", () => openConversation(c.id));
+    const del = document.createElement("button");
+    del.className = "chat-del";
+    del.setAttribute("aria-label", "Delete conversation");
+    del.innerHTML = "&times;";
+    del.addEventListener("click", (e) => {
+      e.stopPropagation();
+      deleteConversation(c.id);
+    });
+    li.append(title, del);
+    host.appendChild(li);
+  }
+}
+
+async function openConversation(id) {
+  const data = await (await fetch(`/api/conversations/${id}`)).json();
+  currentConversationId = id;
+  transcript.innerHTML = "";
+  for (const m of data.messages) {
+    if (m.role === "user") addUserMessage(m.content);
+    else addStoredAssistant(m);
+  }
+  scrollDown();
+  loadConversations();
+}
+
+function newChat() {
+  currentConversationId = null;
+  transcript.innerHTML =
+    `<div class="welcome"><h1>Ask anything.</h1><p>A free local model carries the load. ` +
+    `Research, hard code and multimodal tasks are routed to the right paid expert — only ` +
+    `when the budget allows. Every answer shows who handled it and what it cost.</p></div>`;
+  loadConversations();
+  promptEl.focus();
+}
+
+async function deleteConversation(id) {
+  await fetch(`/api/conversations/${id}`, { method: "DELETE" });
+  if (id === currentConversationId) newChat();
+  else loadConversations();
+}
+
+// ---------- budget + roster + analytics ----------
 async function loadBudget() {
   const data = await (await fetch("/api/budget")).json();
   $("#budget-monthly").textContent = `${data.monthly_budget_eur.toFixed(0)} €/mo`;
@@ -221,6 +296,44 @@ async function raiseBudget() {
   loadBudget();
 }
 
+// ---------- settings ----------
+async function openSettings() {
+  const [settings, models] = await Promise.all([
+    (await fetch("/api/settings")).json(),
+    (await fetch("/api/models")).json(),
+  ]);
+  $("#set-profile").textContent = settings.profile;
+  $("#set-strategy").textContent = settings.router_strategy;
+  $("#set-optimize").textContent = settings.router_optimize ? "on" : "off";
+  $("#set-budget").value = Math.round(settings.monthly_budget_eur);
+  const list = $("#set-models");
+  list.innerHTML = "";
+  for (const m of models.models) {
+    const li = document.createElement("li");
+    li.innerHTML =
+      `<span class="dot ${m.active ? "on" : ""}"></span>` +
+      `<span class="r-name">${m.name}</span>` +
+      `<span class="r-model">${m.model}</span>` +
+      `<span class="set-state">${m.active ? "active" : "no key"}</span>`;
+    list.appendChild(li);
+  }
+  $("#settings-overlay").hidden = false;
+}
+function closeSettings() {
+  $("#settings-overlay").hidden = true;
+}
+async function saveBudget() {
+  const value = Number($("#set-budget").value);
+  if (!value || value < 0) return;
+  await fetch("/api/budget/raise", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ monthly_budget_eur: value }),
+  });
+  loadBudget();
+  closeSettings();
+}
+
 // ---------- wiring ----------
 composer.addEventListener("submit", (e) => {
   e.preventDefault();
@@ -230,7 +343,6 @@ composer.addEventListener("submit", (e) => {
   promptEl.style.height = "auto";
   sendMessage(text);
 });
-
 promptEl.addEventListener("input", () => {
   promptEl.style.height = "auto";
   promptEl.style.height = Math.min(promptEl.scrollHeight, 200) + "px";
@@ -242,7 +354,15 @@ promptEl.addEventListener("keydown", (e) => {
   }
 });
 $("#raise-btn").addEventListener("click", raiseBudget);
+$("#new-chat").addEventListener("click", newChat);
+$("#settings-btn").addEventListener("click", openSettings);
+$("#settings-close").addEventListener("click", closeSettings);
+$("#settings-overlay").addEventListener("click", (e) => {
+  if (e.target.id === "settings-overlay") closeSettings();
+});
+$("#set-budget-save").addEventListener("click", saveBudget);
 
 loadBudget();
 loadModels();
 loadAnalytics();
+loadConversations();

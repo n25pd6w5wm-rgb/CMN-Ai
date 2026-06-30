@@ -17,9 +17,33 @@
     <div class="layout">
       <aside class="rail">
         <header class="brand">
-          <div class="brand-mark">cmn<span>·</span>ai</div>
-          <p class="brand-sub">the conductor</p>
+          <div class="brand-id">
+            <div class="brand-mark">cmn<span>·</span>ai</div>
+            <p class="brand-sub">the conductor</p>
+          </div>
+          <button class="icon-btn" id="settings-btn" title="Settings" aria-label="Settings">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <circle cx="12" cy="12" r="3" />
+              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+            </svg>
+          </button>
         </header>
+
+        <button class="new-chat" id="new-chat">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
+            stroke-width="2" stroke-linecap="round" aria-hidden="true">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          New chat
+        </button>
+
+        <section class="panel chats-panel">
+          <h2 class="panel-title">Chats</h2>
+          <ul class="chats" id="chats">
+            <li class="chats-empty">No conversations yet.</li>
+          </ul>
+        </section>
 
         <section class="panel" id="budget-panel">
           <h2 class="panel-title">Weekly budget</h2>
@@ -42,9 +66,7 @@
           </div>
         </section>
 
-        <footer class="rail-foot">
-          local-first · paid only when it counts
-        </footer>
+        <footer class="rail-foot">local-first · paid only when it counts</footer>
       </aside>
 
       <main class="stage">
@@ -74,6 +96,44 @@
         </form>
       </main>
     </div>
+
+    <div class="modal-overlay" id="settings-overlay" hidden>
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+        <header class="modal-head">
+          <h2 id="settings-title">Settings</h2>
+          <button class="icon-btn" id="settings-close" aria-label="Close">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
+              stroke-width="2" stroke-linecap="round" aria-hidden="true">
+              <path d="M18 6 6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </header>
+        <div class="modal-body">
+          <section class="set-section">
+            <h3>Budget</h3>
+            <div class="set-row">
+              <span>Monthly budget</span>
+              <span class="set-control">
+                <input id="set-budget" type="number" min="0" step="5" /> €
+                <button class="ghost-btn" id="set-budget-save">save</button>
+              </span>
+            </div>
+            <p class="set-hint">Scaled to a rolling 7-day limit, split general / coding.</p>
+          </section>
+          <section class="set-section">
+            <h3>Router</h3>
+            <div class="set-row"><span>Profile</span><span class="mono" id="set-profile">—</span></div>
+            <div class="set-row"><span>Strategy</span><span class="mono" id="set-strategy">—</span></div>
+            <div class="set-row"><span>Prompt optimisation</span><span class="mono" id="set-optimize">—</span></div>
+          </section>
+          <section class="set-section">
+            <h3>Models</h3>
+            <ul class="set-models" id="set-models"></ul>
+          </section>
+        </div>
+      </div>
+    </div>
+
     <script src="/static/chat.js?v={{ js_v }}"></script>
   </body>
 </html>
