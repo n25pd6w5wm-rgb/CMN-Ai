@@ -1,82 +1,108 @@
 #!/usr/bin/env bash
-# cmn-ai — Raspberry Pi setup.
+# cmn-ai — one-shot Raspberry Pi setup. Installs EVERYTHING the Pi needs to be the
+# free-local-model node and connects it to Render — with NO port forwarding.
 #
-# Role of the Pi in the architecture: it runs the FREE local model (Ollama/Gemma) and is
-# reached by the hosted app on Render via OLLAMA_HOST. This script installs Ollama, pulls
-# the model, and exposes Ollama on the LAN so a tunnel can forward it to Render.
+# It installs: base deps, Ollama (listening on the LAN), the model, optionally the
+# trained Dirigent, and cloudflared; then brings up an OUTBOUND tunnel so Render can
+# reach the Pi. No router ports are opened.
 #
-# It contains NO API keys. Paid-model keys (Anthropic, OpenAI, …) live in Supabase and are
-# used by the Render app — the Pi never sees them.
+# The Pi runs only the model here — paid-model API keys live in Supabase and are used by
+# the Render app, never on the Pi.
 #
-# Usage:   ./scripts/install-pi.sh            # uses default model
-#          CMN_AI_MODEL=gemma3:4b ./scripts/install-pi.sh
+# Usage:
+#   ./scripts/install-pi.sh                         # installs + starts a temporary quick tunnel
+#   CF_TUNNEL_TOKEN=eyJ... ./scripts/install-pi.sh  # installs + persistent named tunnel (stable URL)
+#   CMN_AI_MODEL=gemma3:4b ./scripts/install-pi.sh   # pick the model to pull
+#
+# Get CF_TUNNEL_TOKEN from Cloudflare Zero Trust → Networks → Tunnels → Create a tunnel
+# (Cloudflared) → copy the token. That gives a stable https URL with no interactive login.
 set -euo pipefail
 
-# Pi-friendly small model by default. IMPORTANT: this name must match `agents.local.model`
-# in your config (config/default.yaml / config/render.yaml currently say "gemma4:latest" —
-# change one side so they match, or override here with CMN_AI_MODEL).
 MODEL="${CMN_AI_MODEL:-gemma3:1b}"
+CF_TUNNEL_TOKEN="${CF_TUNNEL_TOKEN:-}"
 
-echo "==> 1/4  Installing Ollama (if missing)"
-if ! command -v ollama >/dev/null 2>&1; then
-  curl -fsSL https://ollama.com/install.sh | sh
-else
-  echo "    Ollama already installed: $(ollama --version 2>/dev/null || echo present)"
+log() { printf "\n\033[1;36m==>\033[0m %s\n" "$1"; }
+have() { command -v "$1" >/dev/null 2>&1; }
+
+SUDO=""
+[ "$(id -u)" -ne 0 ] && SUDO="sudo"
+
+if ! have apt-get; then
+  echo "This script targets Debian/Raspberry Pi OS (apt). For other systems, install"
+  echo "Ollama + cloudflared manually; the model pull + tunnel steps still apply." >&2
+  exit 1
 fi
 
-echo "==> 2/4  Exposing Ollama on all interfaces (so a tunnel can reach it)"
-if command -v systemctl >/dev/null 2>&1; then
-  sudo mkdir -p /etc/systemd/system/ollama.service.d
-  sudo tee /etc/systemd/system/ollama.service.d/override.conf >/dev/null <<'EOF'
+log "1/7  Base dependencies"
+$SUDO apt-get update -y
+$SUDO apt-get install -y curl ca-certificates gnupg jq
+
+log "2/7  Ollama"
+if ! have ollama; then
+  curl -fsSL https://ollama.com/install.sh | sh
+else
+  echo "    already installed"
+fi
+
+log "3/7  Expose Ollama on the LAN (systemd override; no router port opened)"
+$SUDO mkdir -p /etc/systemd/system/ollama.service.d
+$SUDO tee /etc/systemd/system/ollama.service.d/override.conf >/dev/null <<'EOF'
 [Service]
 Environment="OLLAMA_HOST=0.0.0.0:11434"
 EOF
-  sudo systemctl daemon-reload
-  sudo systemctl restart ollama
-  echo "    Ollama listening on 0.0.0.0:11434 (systemd)"
-else
-  echo "    No systemd — start manually with:  OLLAMA_HOST=0.0.0.0:11434 ollama serve"
-fi
+$SUDO systemctl daemon-reload
+$SUDO systemctl enable --now ollama 2>/dev/null || true
+$SUDO systemctl restart ollama
 
-echo "==> 3/4  Pulling model: $MODEL"
+log "4/7  Waiting for Ollama, then pulling model: $MODEL"
+for _ in $(seq 1 30); do
+  curl -fsS http://localhost:11434/api/tags >/dev/null 2>&1 && break
+  sleep 1
+done
 ollama pull "$MODEL"
 
-echo "==> 4/4  (optional) Building the trained Dirigent from an exported Modelfile"
+log "5/7  Trained Dirigent (optional)"
 if [ -f "./dist/router-pi/Modelfile" ]; then
-  ollama create cmn-dirigent -f ./dist/router-pi/Modelfile
-  echo "    Built 'cmn-dirigent' (set router.strategy: ollama to use it)."
+  ollama create cmn-dirigent -f ./dist/router-pi/Modelfile && echo "    built 'cmn-dirigent'"
 else
-  echo "    Skipped (no ./dist/router-pi/Modelfile). See docs/router-on-pi.md to export it."
+  echo "    skipped (no ./dist/router-pi/Modelfile — see docs/router-on-pi.md)"
 fi
 
-cat <<EOF
+log "6/7  cloudflared (outbound tunnel client)"
+if ! have cloudflared; then
+  curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg |
+    $SUDO tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
+  echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main" |
+    $SUDO tee /etc/apt/sources.list.d/cloudflared.list >/dev/null
+  $SUDO apt-get update -y && $SUDO apt-get install -y cloudflared
+else
+  echo "    already installed"
+fi
 
-Done.
-  • Ollama serves "$MODEL" on http://0.0.0.0:11434
-  • Smoke test:   ollama run "$MODEL" "hello"
+# quick smoke test
+echo "    smoke test:"; ollama run "$MODEL" "reply with just: ok" || true
 
-Connect the Pi to Render — NO PORT FORWARDING NEEDED. A tunnel dials OUT from the
-Pi, so you never open a router port or firewall rule.
+log "7/7  Tunnel to Render (no port forwarding)"
+if [ -n "$CF_TUNNEL_TOKEN" ]; then
+  echo "    Installing persistent named tunnel as a service (stable URL, reboot-safe)…"
+  $SUDO cloudflared service install "$CF_TUNNEL_TOKEN"
+  cat <<EOF
 
-  Option 1 — Cloudflare quick tunnel (zero config, no account, URL is temporary):
-       curl -fsSL https://pkg.cloudflare.com/install.sh | sudo bash && sudo apt-get install -y cloudflared
-       cloudflared tunnel --url http://localhost:11434
-     → copy the printed https URL into Render's OLLAMA_HOST. Good for testing.
-
-  Option 2 — Cloudflare NAMED tunnel (stable URL, survives reboots; free Cloudflare
-             account + a domain on Cloudflare):
-       cloudflared tunnel login
-       cloudflared tunnel create cmn-pi
-       cloudflared tunnel route dns cmn-pi ollama.deine-domain.de
-       # map the hostname to http://localhost:11434 in ~/.cloudflared/config.yml, then:
-       sudo cloudflared service install     # runs on boot, outbound only
-
-  Alternative — Tailscale Funnel (also outbound-only, no ports):
-       curl -fsSL https://tailscale.com/install.sh | sh && sudo tailscale up
-       tailscale funnel 11434
-
-Then set OLLAMA_HOST on Render to that https URL, and make sure the config's local
-model name matches: $MODEL
-
-API keys for paid models do NOT go on the Pi — load them into Supabase (see docs/DEPLOY.md).
+Pi is READY. The named tunnel runs as a service and survives reboots.
+  • In Cloudflare Zero Trust, that tunnel should route your hostname → http://localhost:11434
+  • Set OLLAMA_HOST on Render to that https hostname.
+  • Local model in your cmn-ai config must be: $MODEL
 EOF
+else
+  cat <<EOF
+
+Install done. Ollama serves "$MODEL" on http://0.0.0.0:11434 (no ports opened).
+
+Starting a QUICK tunnel now (temporary URL, no account). Copy the printed
+https://<...>.trycloudflare.com URL into Render's OLLAMA_HOST. Keep this running,
+or re-run with CF_TUNNEL_TOKEN=... for a stable tunnel that runs as a service.
+
+(Ctrl-C stops the quick tunnel.)
+EOF
+  exec cloudflared tunnel --url http://localhost:11434
+fi
