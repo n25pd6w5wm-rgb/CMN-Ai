@@ -341,6 +341,22 @@ html, body {
   padding: 14px max(8%, 28px) 22px;
   background: linear-gradient(180deg, transparent, var(--bg) 32%);
 }
+.model-select {
+  flex: none;
+  align-self: stretch;
+  max-width: 190px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  color: var(--ink-dim);
+  font-family: var(--sans);
+  font-size: 13px;
+  padding: 0 10px;
+  outline: none;
+  cursor: pointer;
+}
+.model-select:focus { border-color: var(--accent-2); }
+.msg-error { border-color: rgba(229, 112, 75, 0.5); color: var(--danger); }
 .composer textarea {
   flex: 1;
   resize: none;

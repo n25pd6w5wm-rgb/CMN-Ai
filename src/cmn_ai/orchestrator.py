@@ -46,14 +46,42 @@ class Orchestrator:
         self._decision_log = decision_log
         self._now = now
 
-    def route(self, task: Task) -> RouteDecision:
-        """Classify and select without running anything (used by route-debug)."""
+    def route(self, task: Task, *, agent_override: str | None = None) -> RouteDecision:
+        """Classify and select without running anything (used by route-debug).
+
+        If ``agent_override`` names an active agent, the user picked it explicitly — use
+        it (still subject to the budget) instead of letting the router choose.
+        """
         classification = self._router.classify(task)
+        if agent_override and agent_override in self._agents:
+            agent = self._agents[agent_override]
+            if agent.active:
+                cost = agent.cost_per_mtok
+                is_free = cost.input_eur == 0 and cost.output_eur == 0
+                est = 0.0 if is_free else cost.estimate(max(1, len(task.prompt) // 4), 800)
+                if is_free or self._governor.can_spend(agent.bucket, est):
+                    return RouteDecision(
+                        classification=classification,
+                        agent=agent.name,
+                        model=agent.model,
+                        reason=f"user-selected {agent.name}",
+                        estimated_eur=est,
+                    )
+                return RouteDecision(
+                    classification=classification,
+                    agent=agent.name,
+                    model=agent.model,
+                    reason="weekly budget for this category is exhausted",
+                    estimated_eur=est,
+                    blocked=True,
+                )
         return self._router.select(task, classification, self._agents, self._governor)
 
-    async def handle(self, task: Task) -> tuple[RouteDecision, AgentResponse | None]:
+    async def handle(
+        self, task: Task, *, agent_override: str | None = None
+    ) -> tuple[RouteDecision, AgentResponse | None]:
         """Route the task, run the chosen agent, and book its spend."""
-        decision = self.route(task)
+        decision = self.route(task, agent_override=agent_override)
         if decision.blocked:
             self._log(task.prompt, decision, None)
             return decision, None

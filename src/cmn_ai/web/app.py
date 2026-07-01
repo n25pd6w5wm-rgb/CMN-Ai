@@ -64,6 +64,7 @@ class AppState:
 class ChatRequest(BaseModel):
     prompt: str
     conversation_id: str | None = None
+    agent: str | None = None  # optional user-selected agent/model (else the router decides)
 
 
 class RaiseRequest(BaseModel):
@@ -388,7 +389,17 @@ def build_app(state: AppState) -> FastAPI:
         async def stream() -> AsyncIterator[str]:
             if cid is not None:
                 yield _sse("conversation", {"id": cid})
-            decision, response = await state.orchestrator.handle(task)
+            try:
+                decision, response = await state.orchestrator.handle(task, agent_override=req.agent)
+            except Exception as exc:  # surface failures to the user instead of a dead stream
+                print(f"[cmn-ai] chat failed: {exc!r}")
+                detail = (
+                    "The selected model is unavailable. Check that the local model "
+                    "(Pi/Ollama) is reachable or the agent's API key is set."
+                )
+                yield _sse("error", {"message": detail})
+                yield _sse("done", {"error": True})
+                return
             yield _sse("route", _decision_dict(decision))
             if response is None:
                 yield _sse(

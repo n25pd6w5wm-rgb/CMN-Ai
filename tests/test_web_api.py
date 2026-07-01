@@ -383,3 +383,26 @@ def test_welcome_landing_is_public(tmp_path: Path) -> None:
     r = client.get("/welcome")
     assert r.status_code == 200
     assert "the conductor" in r.text
+
+
+def test_chat_agent_override_forces_selected_agent(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    with client.stream(
+        "POST", "/api/chat", json={"prompt": "hello there", "agent": "coding"}
+    ) as resp:
+        body = "".join(resp.iter_text())
+    route = next(d for ev, d in _events(body) if ev == "route")
+    assert route["agent"] == "coding"  # user pick overrides the router's "local"
+
+
+def test_chat_emits_error_event_when_agent_fails(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+
+    async def boom(task: Task, *, system: str | None = None) -> AgentResponse:
+        raise RuntimeError("ollama unreachable")
+
+    client.app.state.cmn.agents["local"].run = boom  # type: ignore[attr-defined]
+    with client.stream("POST", "/api/chat", json={"prompt": "hello there"}) as resp:
+        body = "".join(resp.iter_text())
+    assert "event: error" in body
+    assert any(ev == "error" and "unavailable" in str(d["message"]) for ev, d in _events(body))

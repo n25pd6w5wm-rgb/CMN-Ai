@@ -118,7 +118,11 @@ async function sendMessage(text) {
     resp = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ prompt: text, conversation_id: currentConversationId }),
+      body: JSON.stringify({
+        prompt: text,
+        conversation_id: currentConversationId,
+        agent: $("#model-select").value || null,
+      }),
     });
   } catch (e) {
     bubble.classList.remove("cursor");
@@ -166,6 +170,10 @@ function handleEvent(block, ctx) {
     scrollDown();
   } else if (event === "blocked") {
     renderBlocked(ctx.wrap, ctx.bubble, payload);
+  } else if (event === "error") {
+    ctx.bubble.classList.remove("cursor");
+    ctx.bubble.classList.add("msg-error");
+    ctx.bubble.textContent = payload.message || "Something went wrong.";
   } else if (event === "done" && !payload.blocked) {
     finalizeChip(ctx.chip, payload);
   }
@@ -266,6 +274,20 @@ async function loadModels() {
       `<span class="r-model">${m.model}</span>` +
       tools;
     host.appendChild(li);
+  }
+  // Fill the composer's model picker: Auto + each active agent (keep current choice).
+  const select = $("#model-select");
+  if (select) {
+    const chosen = select.value;
+    select.innerHTML = `<option value="">Auto (Dirigent)</option>`;
+    for (const m of data.models) {
+      if (!m.active) continue;
+      const opt = document.createElement("option");
+      opt.value = m.name;
+      opt.textContent = `${m.name} · ${m.model}`;
+      select.appendChild(opt);
+    }
+    select.value = chosen;
   }
 }
 
