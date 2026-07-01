@@ -96,6 +96,17 @@ Die ausgegebene `https`-URL trägst du als `OLLAMA_HOST` in Render ein.
 
 ---
 
+## 4b. Obsidian-Vault (bleibt auf dem Pi)
+
+Deine Notizen liegen **auf dem Pi**, nicht in der Cloud. Der Installer startet dafür einen
+kleinen Vault-Dienst (`cmn-ai vault-serve`, Port `11435`, Notizen in `~/.cmn-ai/vault`).
+
+- Exponiere `:11435` über einen **zweiten** ausgehenden Tunnel (wie bei Ollama, kein
+  Port-Forwarding) und trag die URL als **`VAULT_HOST`** auf Render ein.
+- In der App unter **Einstellungen → Obsidian Vault** deinen Vault-Ordner hochladen
+  (nur `.md`). Der Browser liest die Dateien und schickt sie an den Pi.
+- Bei passenden Fragen zieht die KI relevante Notizen automatisch als Kontext.
+
 ## 5. Als Web-App „installieren" (machst du / Nutzer)
 
 Die App ist eine **PWA**. Im Browser auf der Render-URL:

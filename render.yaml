@@ -17,6 +17,8 @@ services:
         value: render
       - key: OLLAMA_HOST # the Raspberry Pi's reachable Ollama URL
         sync: false
+      - key: VAULT_HOST # the Pi's reachable vault-service URL (Obsidian notes stay on the Pi)
+        sync: false
       - key: SUPABASE_URL
         sync: false
       - key: SUPABASE_ANON_KEY # public key for the login/signup page
