@@ -55,13 +55,28 @@ Done.
   • Ollama serves "$MODEL" on http://0.0.0.0:11434
   • Smoke test:   ollama run "$MODEL" "hello"
 
-Next steps (so Render can reach this Pi — do NOT open router ports directly):
-  1) Install a tunnel, e.g. Cloudflare:
-       curl -fsSL https://pkg.cloudflare.com/install.sh | sudo bash && sudo apt install cloudflared
+Connect the Pi to Render — NO PORT FORWARDING NEEDED. A tunnel dials OUT from the
+Pi, so you never open a router port or firewall rule.
+
+  Option 1 — Cloudflare quick tunnel (zero config, no account, URL is temporary):
+       curl -fsSL https://pkg.cloudflare.com/install.sh | sudo bash && sudo apt-get install -y cloudflared
        cloudflared tunnel --url http://localhost:11434
-     (or: tailscale funnel 11434)
-  2) Copy the printed https URL and set it as OLLAMA_HOST in the Render dashboard.
-  3) Ensure your config's local model name matches: $MODEL
+     → copy the printed https URL into Render's OLLAMA_HOST. Good for testing.
+
+  Option 2 — Cloudflare NAMED tunnel (stable URL, survives reboots; free Cloudflare
+             account + a domain on Cloudflare):
+       cloudflared tunnel login
+       cloudflared tunnel create cmn-pi
+       cloudflared tunnel route dns cmn-pi ollama.deine-domain.de
+       # map the hostname to http://localhost:11434 in ~/.cloudflared/config.yml, then:
+       sudo cloudflared service install     # runs on boot, outbound only
+
+  Alternative — Tailscale Funnel (also outbound-only, no ports):
+       curl -fsSL https://tailscale.com/install.sh | sh && sudo tailscale up
+       tailscale funnel 11434
+
+Then set OLLAMA_HOST on Render to that https URL, and make sure the config's local
+model name matches: $MODEL
 
 API keys for paid models do NOT go on the Pi — load them into Supabase (see docs/DEPLOY.md).
 EOF

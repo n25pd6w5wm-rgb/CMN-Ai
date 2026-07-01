@@ -376,3 +376,10 @@ def test_conversations_are_isolated_per_user(tmp_path: Path) -> None:
     client.post("/api/auth/logout")
     client.post("/api/auth/signup", json={"email": "b@b.de", "password": "secret2"})
     assert client.get("/api/conversations").json()["conversations"] == []
+
+
+def test_welcome_landing_is_public(tmp_path: Path) -> None:
+    client, _ = _auth_client(tmp_path)  # auth enabled → still reachable without login
+    r = client.get("/welcome")
+    assert r.status_code == 200
+    assert "the conductor" in r.text

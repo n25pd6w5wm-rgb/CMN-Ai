@@ -34,21 +34,33 @@ git push -u origin build/greenfield-mvp        # oder vorher: git branch -M main
 
 ---
 
-## 2. Raspberry Pi erreichbar machen (machst du)
+## 2. Raspberry Pi erreichbar machen — OHNE Port-Freigabe (machst du)
 
-Render muss das Ollama des Pi erreichen. Ollama lauscht lokal auf `:11434` — gib es
-sicher nach außen, z. B. mit **Tailscale Funnel** oder **Cloudflare Tunnel** (kein offenes
-Port-Forwarding!). Du bekommst eine URL wie `https://pi-xyz.trycloudflare.com`.
+**Wichtig:** Du musst **keinen Port am Router öffnen** und keine Portweiterleitung
+einrichten. Ein **Tunnel** (Cloudflare oder Tailscale) baut eine **ausgehende** Verbindung
+vom Pi auf — der Pi „ruft raus", Render erreicht ihn über die Tunnel-URL. Keine offenen
+Ports, keine Firewall-Regeln, deutlich sicherer als Port-Forwarding.
 
-Auf dem Pi muss Ollama auf allen Interfaces lauschen:
+Einfach das Setup-Skript ausführen — es installiert Ollama, stellt es lokal bereit und
+zeigt am Ende die Tunnel-Befehle:
 
 ```bash
-OLLAMA_HOST=0.0.0.0:11434 ollama serve
-ollama pull gemma4        # bzw. dein Modellname
+./scripts/install-pi.sh          # oder: CMN_AI_MODEL=gemma3:4b ./scripts/install-pi.sh
 ```
 
+Dann einen Tunnel starten (alle **ohne** Port-Freigabe):
+
+- **Schnell (zum Testen, kein Account):** `cloudflared tunnel --url http://localhost:11434`
+  → gibt sofort eine temporäre `https://…trycloudflare.com`-URL.
+- **Stabil (Cloudflare-Account + Domain):** benannter Tunnel als Dienst (`cloudflared
+  service install`) → feste URL, läuft nach Reboot weiter. Schritte stehen in der
+  Skript-Ausgabe.
+- **Alternative:** `tailscale funnel 11434`.
+
+Die ausgegebene `https`-URL trägst du als `OLLAMA_HOST` in Render ein.
+
 > Ehrliche Einschränkung: Render → Pi geht übers Heimnetz. Latenz und Verfügbarkeit
-> hängen an der Pi-/Internet-Verbindung zu Hause.
+> hängen an der Pi-/Internet-Verbindung zu Hause (davon unabhängig vom Tunnel-Verfahren).
 
 ---
 

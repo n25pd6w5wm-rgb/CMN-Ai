@@ -127,7 +127,14 @@ def build_app(state: AppState) -> FastAPI:
         return str(user["id"]) if user else None
 
     # Paths reachable without a session (so the login wall + healthcheck + PWA work).
-    _open_paths = {"/login", "/healthz", "/manifest.webmanifest", "/sw.js", "/favicon.ico"}
+    _open_paths = {
+        "/login",
+        "/welcome",
+        "/healthz",
+        "/manifest.webmanifest",
+        "/sw.js",
+        "/favicon.ico",
+    }
 
     @app.middleware("http")
     async def auth_gate(
@@ -150,6 +157,13 @@ def build_app(state: AppState) -> FastAPI:
     @app.get("/healthz", include_in_schema=False)
     async def healthz() -> dict[str, Any]:
         return {"ok": True}
+
+    @app.get("/welcome", response_class=HTMLResponse, include_in_schema=False)
+    async def landing(request: Request) -> HTMLResponse:
+        # Public marketing/landing page (main domain); links to the app at "/".
+        css = _WEB_DIR / "static" / "chat.css"
+        css_v = int(css.stat().st_mtime) if css.exists() else 0
+        return _TEMPLATES.TemplateResponse(request, "landing.html", {"css_v": css_v})
 
     @app.get("/login", response_class=HTMLResponse, include_in_schema=False)
     async def login_page(request: Request) -> Response:

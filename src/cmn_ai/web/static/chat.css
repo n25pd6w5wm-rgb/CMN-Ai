@@ -472,6 +472,48 @@ html, body {
 .auth-msg.ok { color: var(--ok); }
 .auth-foot { font-family: var(--mono); font-size: 10px; color: var(--ink-faint); letter-spacing: 0.06em; }
 
+/* ---------- landing page (rough scaffold) ---------- */
+.lp { max-width: 960px; margin: 0 auto; padding: 0 24px; }
+.lp-nav {
+  display: flex; align-items: center; justify-content: space-between; padding: 22px 0;
+}
+.lp-nav .brand-mark { font-size: 22px; font-weight: 700; }
+.lp-nav .brand-mark span { color: var(--accent); }
+.lp-nav-cta { color: var(--ink); text-decoration: none; font-size: 14px; font-weight: 500; }
+.lp-hero { padding: 8vh 0 6vh; }
+.lp-eyebrow {
+  font-family: var(--mono); font-size: 11px; letter-spacing: 0.22em; text-transform: uppercase;
+  color: var(--ink-faint); margin: 0 0 14px;
+}
+.lp-hero h1 {
+  font-size: clamp(32px, 5.5vw, 56px); font-weight: 800; letter-spacing: -0.03em;
+  line-height: 1.08; margin: 0 0 18px;
+  background: linear-gradient(180deg, var(--ink), var(--ink-dim));
+  -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+}
+.lp-sub { color: var(--ink-dim); font-size: 17px; line-height: 1.6; max-width: 56ch; margin: 0 0 26px; }
+.lp-actions { display: flex; gap: 12px; flex-wrap: wrap; }
+.lp-btn {
+  display: inline-block; padding: 12px 22px; border-radius: 12px; text-decoration: none;
+  background: var(--accent-2); color: #fff; font-weight: 600; font-size: 15px;
+  transition: background 0.15s, box-shadow 0.15s;
+}
+.lp-btn:hover { background: var(--accent); box-shadow: 0 6px 18px rgba(99,102,241,0.4); }
+.lp-btn.ghost { background: transparent; border: 1px solid var(--line); color: var(--ink); }
+.lp-btn.ghost:hover { background: var(--panel-2); box-shadow: none; }
+.lp-features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; padding: 4vh 0; }
+.lp-card { background: var(--panel); border: 1px solid var(--line-soft); border-radius: var(--radius); padding: 20px; }
+.lp-card h3 { margin: 0 0 8px; font-size: 15px; }
+.lp-card p { margin: 0; color: var(--ink-dim); font-size: 13.5px; line-height: 1.6; }
+.lp-install { text-align: center; padding: 8vh 0 4vh; }
+.lp-install h2 { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 12px; }
+.lp-install p { color: var(--ink-dim); max-width: 52ch; margin: 0 auto 22px; line-height: 1.6; }
+.lp-foot {
+  text-align: center; padding: 40px 0; color: var(--ink-faint);
+  font-family: var(--mono); font-size: 10px; letter-spacing: 0.06em;
+}
+@media (max-width: 680px) { .lp-features { grid-template-columns: 1fr; } }
+
 /* responsive: collapse the rail on narrow screens */
 @media (max-width: 760px) {
   .layout { grid-template-columns: 1fr; }
