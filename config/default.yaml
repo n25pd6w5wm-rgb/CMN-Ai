@@ -28,23 +28,23 @@ agents:
     bucket: general
   anthropic:
     enabled: false
-    model: "claude-sonnet-5" # VERIFY exact id vs Anthropic docs; see budget/pricing.py
+    model: "claude-sonnet-5" # Claude Sonnet 5 (current); price in budget/pricing.py
     bucket: general
     api_key_env: "ANTHROPIC_API_KEY"
   coding:
     enabled: false
-    model: "claude-sonnet-5" # VERIFY exact id vs Anthropic docs; see budget/pricing.py
+    model: "claude-sonnet-5" # Claude Sonnet 5 (current); price in budget/pricing.py
     escalate_model: "claude-opus-4-8"
     bucket: coding
     api_key_env: "ANTHROPIC_API_KEY"
   openai:
     enabled: false
-    model: "gpt-4o-mini" # cheap tier of the current GPT models
+    model: "gpt-5.4-mini" # good, affordable current GPT tier
     bucket: general
     api_key_env: "OPENAI_API_KEY"
   gemini:
     enabled: false
-    model: "gemini-1.5-pro"
+    model: "gemini-3.5-flash" # current good, affordable Gemini
     bucket: general
     api_key_env: "GEMINI_API_KEY"
   perplexity:
