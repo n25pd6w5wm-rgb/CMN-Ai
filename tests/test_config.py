@@ -18,12 +18,12 @@ def test_load_mac_profile_uses_default_budget() -> None:
 
 def test_mac_profile_overrides_local_model() -> None:
     settings = load_settings(profile="mac")
-    assert settings.agents["local"].model == "gemma4:31b"
+    assert settings.agents["local"].model == "gemma3:4b"
 
 
 def test_pi_profile_overrides_local_model() -> None:
     settings = load_settings(profile="pi")
-    assert settings.agents["local"].model == "gemma4:latest"
+    assert settings.agents["local"].model == "gemma3:1b"
 
 
 def test_coding_agent_uses_coding_bucket() -> None:

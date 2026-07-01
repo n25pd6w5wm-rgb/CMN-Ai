@@ -11,4 +11,4 @@ router:
 
 agents:
   local:
-    model: "gemma4:latest"
+    model: "gemma3:1b"
