@@ -32,6 +32,8 @@ PRICING: dict[str, CostPerMTok] = {
     "sonar-pro": CostPerMTok(2.8, 13.8),
     "sonar": CostPerMTok(0.9, 0.9),
     # Local (Ollama / Gemma) — always free
+    "gemma3:1b": _FREE,
+    "gemma3:4b": _FREE,
     "gemma4:latest": _FREE,
     "gemma4:31b": _FREE,
 }

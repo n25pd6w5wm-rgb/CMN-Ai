@@ -12,4 +12,4 @@ storage:
 
 agents:
   local:
-    model: "gemma4:latest"
+    model: "gemma3:1b" # must match the model pulled on the Pi (scripts/install-pi.sh)
