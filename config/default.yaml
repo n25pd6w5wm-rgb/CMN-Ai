@@ -28,18 +28,18 @@ agents:
     bucket: general
   anthropic:
     enabled: false
-    model: "claude-sonnet-4-6"
+    model: "claude-sonnet-5" # VERIFY exact id vs Anthropic docs; see budget/pricing.py
     bucket: general
     api_key_env: "ANTHROPIC_API_KEY"
   coding:
     enabled: false
-    model: "claude-sonnet-4-6"
+    model: "claude-sonnet-5" # VERIFY exact id vs Anthropic docs; see budget/pricing.py
     escalate_model: "claude-opus-4-8"
     bucket: coding
     api_key_env: "ANTHROPIC_API_KEY"
   openai:
     enabled: false
-    model: "gpt-4o"
+    model: "gpt-4o-mini" # cheap tier of the current GPT models
     bucket: general
     api_key_env: "OPENAI_API_KEY"
   gemini:

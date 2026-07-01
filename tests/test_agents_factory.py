@@ -35,7 +35,7 @@ def test_enabled_cloud_agent_is_built_with_pricing(
     anthropic = agents["anthropic"]
     assert anthropic.name == "anthropic"
     assert anthropic.active is True
-    assert anthropic.cost_per_mtok == price_for("claude-sonnet-4-6")
+    assert anthropic.cost_per_mtok == price_for(settings.agents["anthropic"].model)
     assert Capability.CODE in anthropic.capabilities
 
 

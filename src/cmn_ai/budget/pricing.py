@@ -15,6 +15,7 @@ _FREE = CostPerMTok(0.0, 0.0)
 PRICING: dict[str, CostPerMTok] = {
     # Anthropic
     "claude-opus-4-8": CostPerMTok(13.8, 69.0),
+    "claude-sonnet-5": CostPerMTok(3.0, 15.0),  # VERIFY exact model id + price vs Anthropic docs
     "claude-sonnet-4-6": CostPerMTok(2.8, 13.8),
     "claude-haiku-4-5": CostPerMTok(0.9, 4.6),
     # OpenAI
