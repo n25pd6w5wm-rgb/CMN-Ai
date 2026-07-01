@@ -28,6 +28,12 @@ def _serve(host: str, port: int) -> None:
     uvicorn.run("cmn_ai.web.app:create_app", host=host, port=port, factory=True)
 
 
+def _vault_serve(host: str, port: int) -> None:
+    import uvicorn
+
+    uvicorn.run("cmn_ai.web.vault_service:vault_app_factory", host=host, port=port, factory=True)
+
+
 _TABLE_SQL = (
     "create table if not exists api_keys (\n"
     "  name  text primary key,\n"
@@ -217,6 +223,10 @@ def main() -> None:
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8000)
 
+    vault = sub.add_parser("vault-serve", help="serve the on-Pi markdown vault (search + upload)")
+    vault.add_argument("--host", default="0.0.0.0")
+    vault.add_argument("--port", type=int, default=11435)
+
     train = sub.add_parser("train", help="LoRA fine-tune the routing model locally (MLX)")
     train.add_argument("--iters", type=int, default=300)
 
@@ -227,6 +237,8 @@ def main() -> None:
         _setup()
     elif args.command == "serve":
         _serve(args.host, args.port)
+    elif args.command == "vault-serve":
+        _vault_serve(args.host, args.port)
     elif args.command == "train":
         _train(args.iters)
     elif args.command == "eval":

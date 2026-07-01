@@ -82,16 +82,39 @@ fi
 # quick smoke test
 echo "    smoke test:"; ollama run "$MODEL" "reply with just: ok" || true
 
-log "7/7  Tunnel to Render (no port forwarding)"
+log "7/8  Vault service (your Obsidian notes stay here on the Pi)"
+REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+if ! have uv; then curl -LsSf https://astral.sh/uv/install.sh | sh; fi
+UV_BIN="$(command -v uv || echo "$HOME/.local/bin/uv")"
+(cd "$REPO_DIR" && "$UV_BIN" sync)
+$SUDO tee /etc/systemd/system/cmn-ai-vault.service >/dev/null <<EOF
+[Unit]
+Description=cmn-ai vault service (markdown notes search + upload)
+After=network.target
+[Service]
+User=$(whoami)
+WorkingDirectory=$REPO_DIR
+Environment=CMN_AI_VAULT_DIR=$HOME/.cmn-ai/vault
+ExecStart=$UV_BIN run cmn-ai vault-serve --host 0.0.0.0 --port 11435
+Restart=on-failure
+[Install]
+WantedBy=multi-user.target
+EOF
+$SUDO systemctl daemon-reload
+$SUDO systemctl enable --now cmn-ai-vault
+echo "    vault service on :11435 — notes stored in $HOME/.cmn-ai/vault (never leaves the Pi)"
+
+log "8/8  Tunnel to Render (no port forwarding)"
 if [ -n "$CF_TUNNEL_TOKEN" ]; then
   echo "    Installing persistent named tunnel as a service (stable URL, reboot-safe)…"
   $SUDO cloudflared service install "$CF_TUNNEL_TOKEN"
   cat <<EOF
 
 Pi is READY. The named tunnel runs as a service and survives reboots.
-  • In Cloudflare Zero Trust, that tunnel should route your hostname → http://localhost:11434
-  • Set OLLAMA_HOST on Render to that https hostname.
+  • Route one hostname → http://localhost:11434 → set OLLAMA_HOST on Render.
+  • Route a second hostname → http://localhost:11435 (the vault) → set VAULT_HOST on Render.
   • Local model in your cmn-ai config must be: $MODEL
+  • Your notes live in $HOME/.cmn-ai/vault and never leave the Pi.
 EOF
 else
   cat <<EOF
@@ -101,6 +124,10 @@ Install done. Ollama serves "$MODEL" on http://0.0.0.0:11434 (no ports opened).
 Starting a QUICK tunnel now (temporary URL, no account). Copy the printed
 https://<...>.trycloudflare.com URL into Render's OLLAMA_HOST. Keep this running,
 or re-run with CF_TUNNEL_TOKEN=... for a stable tunnel that runs as a service.
+
+The vault runs on :11435 — expose it with a SECOND quick tunnel and set VAULT_HOST:
+    cloudflared tunnel --url http://localhost:11435
+Your notes live in $HOME/.cmn-ai/vault and never leave the Pi.
 
 (Ctrl-C stops the quick tunnel.)
 EOF
