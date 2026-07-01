@@ -83,11 +83,21 @@ fi
 echo "    smoke test:"; ollama run "$MODEL" "reply with just: ok" || true
 
 log "7/8  Vault service (your Obsidian notes stay here on the Pi)"
-REPO_DIR="$(cd "$(dirname "$0")/.." && pwd)"
-if ! have uv; then curl -LsSf https://astral.sh/uv/install.sh | sh; fi
-UV_BIN="$(command -v uv || echo "$HOME/.local/bin/uv")"
-(cd "$REPO_DIR" && "$UV_BIN" sync)
-$SUDO tee /etc/systemd/system/cmn-ai-vault.service >/dev/null <<EOF
+# Find the cmn-ai repo: run from inside it, or set CMN_AI_REPO=<git-url> to clone it.
+REPO_DIR="$(cd "$(dirname "$0")/.." 2>/dev/null && pwd || true)"
+if [ ! -f "$REPO_DIR/pyproject.toml" ] && [ -n "${CMN_AI_REPO:-}" ]; then
+  git clone "$CMN_AI_REPO" "$HOME/cmn-ai" 2>/dev/null || (cd "$HOME/cmn-ai" && git pull --ff-only || true)
+  REPO_DIR="$HOME/cmn-ai"
+fi
+if [ ! -f "$REPO_DIR/pyproject.toml" ]; then
+  echo "    ⚠ Skipped: the cmn-ai code isn't here. Run this script from inside the cloned"
+  echo "      repo, or re-run with CMN_AI_REPO=https://github.com/<you>/cmn-ai.git to clone it."
+  echo "      Ollama (above) is ready regardless; the vault can be set up later."
+else
+  if ! have uv; then curl -LsSf https://astral.sh/uv/install.sh | sh; fi
+  UV_BIN="$(command -v uv || echo "$HOME/.local/bin/uv")"
+  (cd "$REPO_DIR" && "$UV_BIN" sync)
+  $SUDO tee /etc/systemd/system/cmn-ai-vault.service >/dev/null <<EOF
 [Unit]
 Description=cmn-ai vault service (markdown notes search + upload)
 After=network.target
@@ -100,9 +110,10 @@ Restart=on-failure
 [Install]
 WantedBy=multi-user.target
 EOF
-$SUDO systemctl daemon-reload
-$SUDO systemctl enable --now cmn-ai-vault
-echo "    vault service on :11435 — notes stored in $HOME/.cmn-ai/vault (never leaves the Pi)"
+  $SUDO systemctl daemon-reload
+  $SUDO systemctl enable --now cmn-ai-vault
+  echo "    vault service on :11435 — notes in $HOME/.cmn-ai/vault (never leaves the Pi)"
+fi
 
 log "8/8  Tunnel to Render (no port forwarding)"
 if [ -n "$CF_TUNNEL_TOKEN" ]; then
