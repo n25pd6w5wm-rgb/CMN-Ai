@@ -40,6 +40,7 @@ from cmn_ai.storage.conversations import ConversationBackend, ConversationStore
 from cmn_ai.storage.decisions import DecisionLog
 from cmn_ai.storage.supabase_store import SupabaseConversationStore
 from cmn_ai.web.auth import AuthError, SupabaseAuth, build_auth_from_env
+from cmn_ai.web.vault_client import VaultClient, build_vault_client_from_env
 
 SESSION_COOKIE = "cmn_session"
 
@@ -59,6 +60,7 @@ class AppState:
     decision_log: DecisionLog | None = None
     conversations: ConversationBackend | None = None
     auth: SupabaseAuth | None = None
+    vault: VaultClient | None = None
 
 
 class ChatRequest(BaseModel):
@@ -78,6 +80,15 @@ class RenameRequest(BaseModel):
 class AuthRequest(BaseModel):
     email: str
     password: str
+
+
+class VaultNote(BaseModel):
+    path: str
+    content: str
+
+
+class VaultUploadRequest(BaseModel):
+    notes: list[VaultNote]
 
 
 def _set_session(response: Response, token: str, *, secure: bool) -> None:
@@ -364,6 +375,19 @@ def build_app(state: AppState) -> FastAPI:
         store.delete(conversation_id)
         return {"ok": True}
 
+    @app.get("/api/vault/status")
+    async def vault_status() -> dict[str, Any]:
+        return {"enabled": state.vault is not None}
+
+    @app.post("/api/vault/upload")
+    async def vault_upload(req: VaultUploadRequest) -> dict[str, Any]:
+        if state.vault is None:
+            raise HTTPException(400, "vault is not configured (set VAULT_HOST)")
+        try:
+            return state.vault.upload([n.model_dump() for n in req.notes])
+        except Exception as exc:  # Pi/vault unreachable
+            raise HTTPException(502, "vault upload failed — is the Pi reachable?") from exc
+
     @app.post("/api/chat")
     async def chat(req: ChatRequest, request: Request) -> StreamingResponse:
         store = state.conversations
@@ -384,7 +408,20 @@ def build_app(state: AppState) -> FastAPI:
                 if m["role"] in ("user", "assistant")
             )
             store.add_message(cid, "user", req.prompt, at=now, user_id=uid)
-        task = Task(prompt=req.prompt, history=history)
+
+        # Pull relevant notes from the on-Pi vault (if configured) as extra context.
+        # The stored user message stays the original prompt; only the model sees the notes.
+        model_prompt = req.prompt
+        if state.vault is not None:
+            hits = state.vault.search(req.prompt)
+            if hits:
+                notes = "\n---\n".join(f"[{h['path']}]\n{h['snippet']}" for h in hits)
+                model_prompt = (
+                    "You have access to the user's personal notes. Use them if relevant, "
+                    "and say when you do.\n\nNOTES:\n"
+                    f"{notes}\n\n---\nUser message: {req.prompt}"
+                )
+        task = Task(prompt=model_prompt, history=history)
 
         async def stream() -> AsyncIterator[str]:
             if cid is not None:
@@ -471,6 +508,7 @@ def build_state_from_settings(settings: Settings | None = None) -> AppState:
         decision_log=decision_log,
         conversations=conversations,
         auth=build_auth_from_env(),
+        vault=build_vault_client_from_env(),
     )
 
 

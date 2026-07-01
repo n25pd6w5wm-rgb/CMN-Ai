@@ -329,12 +329,40 @@ async function logout() {
   window.location.href = "/login";
 }
 
+async function uploadVault() {
+  const input = $("#vault-files");
+  const status = $("#vault-status");
+  const files = [...(input.files || [])].filter((f) => f.name.endsWith(".md"));
+  if (!files.length) {
+    status.textContent = "Keine .md-Dateien ausgewählt.";
+    return;
+  }
+  status.textContent = `Lade ${files.length} Notizen…`;
+  const notes = [];
+  for (const f of files) notes.push({ path: f.webkitRelativePath || f.name, content: await f.text() });
+  try {
+    const resp = await fetch("/api/vault/upload", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ notes }),
+    });
+    const data = await resp.json().catch(() => ({}));
+    status.textContent = resp.ok
+      ? `${data.saved} gespeichert (gesamt ${data.total_notes}).`
+      : data.detail || "Upload fehlgeschlagen.";
+  } catch (e) {
+    status.textContent = "Netzwerkfehler beim Upload.";
+  }
+}
+
 async function openSettings() {
-  const [settings, models, me] = await Promise.all([
+  const [settings, models, me, vault] = await Promise.all([
     (await fetch("/api/settings")).json(),
     (await fetch("/api/models")).json(),
     (await fetch("/api/auth/me")).json().catch(() => ({ user: null })),
+    (await fetch("/api/vault/status")).json().catch(() => ({ enabled: false })),
   ]);
+  $("#vault-section").hidden = !vault.enabled;
   const account = $("#account-section");
   if (me.user && me.user.email) {
     $("#set-email").textContent = me.user.email;
@@ -402,6 +430,7 @@ $("#settings-overlay").addEventListener("click", (e) => {
 });
 $("#set-budget-save").addEventListener("click", saveBudget);
 $("#logout-btn").addEventListener("click", logout);
+$("#vault-upload-btn").addEventListener("click", uploadVault);
 
 loadBudget();
 loadModels();

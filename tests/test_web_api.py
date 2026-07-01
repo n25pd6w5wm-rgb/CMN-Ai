@@ -406,3 +406,86 @@ def test_chat_emits_error_event_when_agent_fails(tmp_path: Path) -> None:
         body = "".join(resp.iter_text())
     assert "event: error" in body
     assert any(ev == "error" and "unavailable" in str(d["message"]) for ev, d in _events(body))
+
+
+# ---------- vault (on-Pi notes as context + upload proxy) ----------
+
+from cmn_ai.web.vault_client import VaultClient  # noqa: E402
+
+
+class FakeVault:
+    def __init__(self, hits: list[dict[str, object]] | None = None) -> None:
+        self._hits = hits or []
+        self.uploaded: list[dict[str, str]] | None = None
+
+    def search(self, query: str, limit: int = 5) -> list[dict[str, object]]:
+        return self._hits
+
+    def upload(self, notes: list[dict[str, str]]) -> dict[str, object]:
+        self.uploaded = notes
+        return {"saved": len(notes), "errors": [], "total_notes": len(notes)}
+
+
+def test_vault_status_disabled_by_default(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    assert client.get("/api/vault/status").json() == {"enabled": False}
+
+
+def test_chat_injects_vault_notes_into_prompt(tmp_path: Path) -> None:
+    settings = Settings(profile="mac", budget=BudgetSettings(monthly_budget_eur=30.0))
+
+    class RecordingAgent:
+        def __init__(self) -> None:
+            self.name = "local"
+            self.model = "m"
+            self.capabilities = frozenset({Capability.CHAT, Capability.CODE})
+            self.cost_per_mtok = FREE
+            self.bucket = Bucket.GENERAL
+            self.active = True
+            self.seen_prompt = ""
+
+        async def run(self, task: Task, *, system: str | None = None) -> AgentResponse:
+            self.seen_prompt = task.prompt
+            return AgentResponse(
+                text="ok",
+                agent=self.name,
+                model=self.model,
+                usage=Usage(1, 1),
+                cost_eur=0.0,
+                bucket=self.bucket,
+            )
+
+    rec = RecordingAgent()
+    governor = BudgetGovernor(
+        settings=settings.budget, ledger=Ledger(tmp_path / "l.db"), now=lambda: NOW
+    )
+    state = AppState(
+        settings=settings,
+        agents={"local": rec},
+        router=RuleRouter(),
+        governor=governor,
+        orchestrator=Orchestrator(
+            agents={"local": rec}, router=RuleRouter(), governor=governor, now=lambda: NOW
+        ),
+        conversations=ConversationStore(tmp_path / "c.db"),
+        vault=cast(
+            VaultClient,
+            FakeVault(hits=[{"path": "Projekte/cmn-ai.md", "snippet": "routing notes"}]),
+        ),
+    )
+    client = TestClient(build_app(state))
+    with client.stream("POST", "/api/chat", json={"prompt": "how does routing work?"}) as resp:
+        "".join(resp.iter_text())
+    assert "NOTES:" in rec.seen_prompt
+    assert "Projekte/cmn-ai.md" in rec.seen_prompt
+    assert "how does routing work?" in rec.seen_prompt
+
+
+def test_vault_upload_forwards_to_pi(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    fake = FakeVault()
+    client.app.state.cmn.vault = cast(VaultClient, fake)  # type: ignore[attr-defined]
+    resp = client.post("/api/vault/upload", json={"notes": [{"path": "n.md", "content": "hello"}]})
+    assert resp.status_code == 200
+    assert resp.json()["saved"] == 1
+    assert fake.uploaded == [{"path": "n.md", "content": "hello"}]

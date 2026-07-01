@@ -125,6 +125,18 @@
               <button class="ghost-btn" id="logout-btn">log out</button>
             </div>
           </section>
+          <section class="set-section" id="vault-section" hidden>
+            <h3>Obsidian Vault</h3>
+            <p class="set-hint">
+              Notizen werden auf dem Raspberry Pi gespeichert (nicht in der Cloud) und bei
+              passenden Fragen als Kontext genutzt.
+            </p>
+            <div class="set-row">
+              <input type="file" id="vault-files" accept=".md" multiple webkitdirectory />
+              <button class="ghost-btn" id="vault-upload-btn">hochladen</button>
+            </div>
+            <p class="set-hint" id="vault-status"></p>
+          </section>
           <section class="set-section">
             <h3>Budget</h3>
             <div class="set-row">
