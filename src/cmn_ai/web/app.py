@@ -44,6 +44,50 @@ from cmn_ai.web.vault_client import VaultClient, build_vault_client_from_env
 
 SESSION_COOKIE = "cmn_session"
 
+# Legal-page contents (DE). The Impressum placeholders must be filled with the
+# operator's real details before commercial launch — a lawyer should review both.
+_IMPRESSUM_BODY = """
+<h2>Angaben gemäß § 5 DDG</h2>
+<p class="placeholder">[Vor- und Nachname bzw. Firma]<br>[Straße Hausnummer]<br>
+[PLZ Ort]<br>Deutschland</p>
+<h2>Kontakt</h2>
+<p class="placeholder">E-Mail: [kontakt@domain.tld]</p>
+<h2>Verantwortlich für den Inhalt</h2>
+<p class="placeholder">[Name, Anschrift wie oben]</p>
+<p><em>Hinweis: Dieses Impressum ist ein Entwurf und vor dem kommerziellen Start zu
+vervollständigen und juristisch zu prüfen.</em></p>
+"""
+
+_DATENSCHUTZ_BODY = """
+<p><em>Stand: Juli 2026 — Entwurf, vor dem kommerziellen Start juristisch prüfen lassen.</em></p>
+<h2>1. Verantwortlicher</h2>
+<p class="placeholder">[Name und Kontaktdaten wie im Impressum]</p>
+<h2>2. Welche Daten wir verarbeiten</h2>
+<ul>
+<li><strong>Konto:</strong> E-Mail-Adresse und Passwort-Hash, gespeichert bei unserem
+Auth-Dienstleister Supabase (EU-Region), zur Anmeldung und Kontoverwaltung
+(Art. 6 Abs. 1 lit. b DSGVO).</li>
+<li><strong>Konversationen:</strong> Deine Chat-Nachrichten und die KI-Antworten werden
+deinem Konto zugeordnet gespeichert, damit du sie wieder öffnen kannst. Du kannst
+Konversationen jederzeit in der App löschen.</li>
+<li><strong>KI-Verarbeitung:</strong> Zur Beantwortung wird der Inhalt deiner Nachricht an
+das jeweils gewählte KI-Modell übermittelt — lokal betriebene Modelle oder
+API-Anbieter (Anthropic, OpenAI, Google, Perplexity). Welche KI geantwortet hat,
+zeigt die App unter jeder Antwort an.</li>
+<li><strong>Session-Cookie:</strong> Ein technisch notwendiges Cookie hält dich angemeldet.
+Es gibt kein Tracking, keine Werbe-Cookies, keine Analyse-Pixel.</li>
+</ul>
+<h2>3. Hosting</h2>
+<p>Die App läuft bei Render (Cloud-Hosting). Beim Aufruf fallen technisch notwendige
+Server-Logs an (IP-Adresse, Zeitpunkt, aufgerufene Seite), die zur Betriebssicherheit
+kurzzeitig gespeichert werden (Art. 6 Abs. 1 lit. f DSGVO).</p>
+<h2>4. Deine Rechte</h2>
+<p>Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der
+Verarbeitung, Datenübertragbarkeit und Widerspruch (Art. 15 bis 21 DSGVO) sowie auf
+Beschwerde bei einer Aufsichtsbehörde. Schreib dazu an die im Impressum genannte
+Adresse.</p>
+"""
+
 _WEB_DIR = Path(__file__).resolve().parent
 _TEMPLATES = Jinja2Templates(directory=str(_WEB_DIR / "templates"))
 
@@ -142,6 +186,9 @@ def build_app(state: AppState) -> FastAPI:
     _open_paths = {
         "/login",
         "/welcome",
+        "/landing",
+        "/impressum",
+        "/datenschutz",
         "/healthz",
         "/manifest.webmanifest",
         "/sw.js",
@@ -176,6 +223,25 @@ def build_app(state: AppState) -> FastAPI:
         css = _WEB_DIR / "static" / "chat.css"
         css_v = int(css.stat().st_mtime) if css.exists() else 0
         return _TEMPLATES.TemplateResponse(request, "landing.html", {"css_v": css_v})
+
+    @app.get("/landing", include_in_schema=False)
+    async def landing_alias() -> RedirectResponse:
+        return RedirectResponse("/welcome", status_code=302)
+
+    def _legal_page(request: Request, title: str, body: str) -> HTMLResponse:
+        css = _WEB_DIR / "static" / "chat.css"
+        css_v = int(css.stat().st_mtime) if css.exists() else 0
+        return _TEMPLATES.TemplateResponse(
+            request, "legal.html", {"title": title, "body": body, "css_v": css_v}
+        )
+
+    @app.get("/impressum", response_class=HTMLResponse, include_in_schema=False)
+    async def impressum(request: Request) -> HTMLResponse:
+        return _legal_page(request, "Impressum", _IMPRESSUM_BODY)
+
+    @app.get("/datenschutz", response_class=HTMLResponse, include_in_schema=False)
+    async def datenschutz(request: Request) -> HTMLResponse:
+        return _legal_page(request, "Datenschutzerklärung", _DATENSCHUTZ_BODY)
 
     @app.get("/login", response_class=HTMLResponse, include_in_schema=False)
     async def login_page(request: Request) -> Response:
@@ -524,7 +590,9 @@ def build_state_from_settings(settings: Settings | None = None) -> AppState:
     router = build_router(settings)
     decision_log = DecisionLog(db_path)
     # Hosted (multi-user) backend if Supabase *and* auth are configured; else SQLite.
-    auth = build_auth_from_env()
+    auth = build_auth_from_env(
+        fallback_url=settings.supabase_url, fallback_anon=settings.supabase_anon_key
+    )
     conversations = choose_conversation_backend(
         db_path,
         supabase_url=os.environ.get("SUPABASE_URL"),

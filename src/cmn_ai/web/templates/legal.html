@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>{{ title }} — cmn·ai</title>
+    <link rel="icon" href="/static/icons/icon-192.png" />
+    <meta name="theme-color" content="#0c0d10" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/chat.css?v={{ css_v }}" />
+    <style>
+      .legal { max-width: 720px; margin: 0 auto; padding: 24px 24px 104px; }
+      .legal header { display: flex; justify-content: space-between; align-items: center; padding: 24px 0 64px; }
+      .legal h1 { font-size: 1.75rem; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 24px; }
+      .legal h2 { font-size: 1.15rem; font-weight: 600; margin: 40px 0 8px; }
+      .legal p, .legal li { color: var(--ink-dim); font-size: 0.95rem; line-height: 1.7; }
+      .legal .placeholder { border: 1px dashed var(--line); border-radius: var(--radius); padding: 12px 16px; color: var(--ink-faint); font-family: var(--mono); font-size: 0.85rem; }
+      .legal a { color: var(--accent); text-decoration: none; }
+      .legal .back { color: var(--ink-dim); font-size: 0.9rem; }
+    </style>
+  </head>
+  <body>
+    <div class="legal">
+      <header>
+        <div class="brand-mark">cmn<span>·</span>ai</div>
+        <a class="back" href="/welcome">← Zurück</a>
+      </header>
+      <h1>{{ title }}</h1>
+      {{ body | safe }}
+    </div>
+  </body>
+</html>

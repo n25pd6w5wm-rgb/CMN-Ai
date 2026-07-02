@@ -7,6 +7,12 @@
 router:
   strategy: rule
 
+# Public (client-side) Supabase values — the login wall + per-user conversations
+# come up without any manual Render dashboard step. The secret SUPABASE_KEY
+# (loads model API keys, bypasses RLS) stays env-only and is never committed.
+supabase_url: "https://gamrqvueirvkjsksbsar.supabase.co"
+supabase_anon_key: "sb_publishable_FHFlcz7xBBodhhraCGsnkA_gD3vINGe"
+
 storage:
   db_path: "/data/cmn.db"
 

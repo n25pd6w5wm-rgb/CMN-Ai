@@ -83,10 +83,16 @@ class SupabaseAuth:
         return dict(resp.json())
 
 
-def build_auth_from_env() -> SupabaseAuth | None:
-    """Construct the auth client if Supabase is configured, else None (open mode)."""
-    url = os.environ.get("SUPABASE_URL")
-    anon = os.environ.get("SUPABASE_ANON_KEY")
+def build_auth_from_env(
+    *, fallback_url: str | None = None, fallback_anon: str | None = None
+) -> SupabaseAuth | None:
+    """Construct the auth client if Supabase is configured, else None (open mode).
+
+    Env vars win; the fallbacks let hosted profiles ship the public client values
+    in config so the login wall needs no manual dashboard step.
+    """
+    url = os.environ.get("SUPABASE_URL") or fallback_url
+    anon = os.environ.get("SUPABASE_ANON_KEY") or fallback_anon
     if url and anon:
         return SupabaseAuth(url, anon)
     return None

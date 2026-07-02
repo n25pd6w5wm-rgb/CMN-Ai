@@ -93,6 +93,10 @@ class Settings(BaseModel):
 
     profile: str
     ollama_host: str = "http://localhost:11434"
+    # Public (client-side) Supabase values; safe to ship in config. The secret
+    # SUPABASE_KEY stays env-only. Env vars override these when both are set.
+    supabase_url: str | None = None
+    supabase_anon_key: str | None = None
     budget: BudgetSettings = Field(default_factory=BudgetSettings)
     router: RouterSettings = Field(default_factory=RouterSettings)
     storage: StorageSettings = Field(default_factory=StorageSettings)

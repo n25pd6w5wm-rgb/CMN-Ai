@@ -73,3 +73,13 @@ def test_build_auth_from_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SUPABASE_URL", _URL)
     monkeypatch.setenv("SUPABASE_ANON_KEY", "anon")
     assert build_auth_from_env() is not None
+
+
+def test_build_auth_falls_back_to_settings_values(monkeypatch: pytest.MonkeyPatch) -> None:
+    # Hosted deploys can ship the public Supabase values in the profile config;
+    # env vars still win when both are present.
+    monkeypatch.delenv("SUPABASE_URL", raising=False)
+    monkeypatch.delenv("SUPABASE_ANON_KEY", raising=False)
+    auth = build_auth_from_env(fallback_url=_URL, fallback_anon="anon")
+    assert auth is not None
+    assert build_auth_from_env(fallback_url=_URL, fallback_anon=None) is None

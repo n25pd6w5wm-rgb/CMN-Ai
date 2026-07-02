@@ -567,3 +567,22 @@ def test_backend_uses_sqlite_without_supabase_creds(tmp_path: Path) -> None:
         tmp_path / "conv.db", supabase_url=None, supabase_key=None, auth=None
     )
     assert isinstance(backend, ConversationStore)
+
+
+# ---------- legal pages — public even behind the login wall ----------
+
+
+def test_legal_pages_are_public_without_login(tmp_path: Path) -> None:
+    client, _ = _auth_client(tmp_path)
+    for path in ("/impressum", "/datenschutz"):
+        r = client.get(path, follow_redirects=False)
+        assert r.status_code == 200, path
+    assert "Impressum" in client.get("/impressum").text
+    assert "Datenschutz" in client.get("/datenschutz").text
+
+
+def test_landing_alias_redirects_to_welcome(tmp_path: Path) -> None:
+    client, _ = _auth_client(tmp_path)
+    r = client.get("/landing", follow_redirects=False)
+    assert r.status_code == 302
+    assert r.headers["location"] == "/welcome"

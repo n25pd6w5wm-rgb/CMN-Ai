@@ -141,6 +141,10 @@ The vault runs on :11435 — expose it with a SECOND quick tunnel and set VAULT_
 Your notes live in $HOME/.cmn-ai/vault and never leave the Pi.
 
 (Ctrl-C stops the quick tunnel.)
+
+Next time (e.g. after a reboot) just run:
+    bash ~/cmn-ai/scripts/start-pi.sh
+It restarts services + both tunnels and prints the URLs for Render.
 EOF
   exec cloudflared tunnel --url http://localhost:11434
 fi

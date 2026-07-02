@@ -42,3 +42,11 @@ def test_profile_override_wins_over_detection() -> None:
     # Explicit profile argument must be honored regardless of host platform.
     settings = load_settings(profile="pi")
     assert settings.profile == "pi"
+
+
+def test_render_profile_ships_public_supabase_values() -> None:
+    # The login wall must come up on Render without manual dashboard steps: the
+    # public (client-side) Supabase URL + anon key ride along in the profile.
+    settings = load_settings("render")
+    assert settings.supabase_url and settings.supabase_url.startswith("https://")
+    assert settings.supabase_anon_key and settings.supabase_anon_key.startswith("sb_publishable_")
