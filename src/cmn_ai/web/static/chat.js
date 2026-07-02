@@ -108,9 +108,55 @@ function renderBlocked(wrap, bubble, info) {
   scrollDown();
 }
 
+// ---------- attachments ----------
+let pendingFiles = []; // {name, data(base64)}
+
+function renderAttachChips() {
+  const row = $("#attach-chips");
+  row.innerHTML = "";
+  row.hidden = pendingFiles.length === 0;
+  pendingFiles.forEach((f, i) => {
+    const chip = document.createElement("span");
+    chip.className = "attach-chip";
+    chip.textContent = f.name + " ";
+    const x = document.createElement("button");
+    x.type = "button";
+    x.textContent = "×";
+    x.setAttribute("aria-label", `${f.name} entfernen`);
+    x.addEventListener("click", () => {
+      pendingFiles.splice(i, 1);
+      renderAttachChips();
+    });
+    chip.appendChild(x);
+    row.appendChild(chip);
+  });
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result.split(",", 2)[1]);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+
+async function onFilesPicked(list) {
+  for (const file of list) {
+    if (file.size > 15 * 1024 * 1024) {
+      alert(`${file.name} ist größer als 15 MB.`);
+      continue;
+    }
+    if (pendingFiles.length >= 8) break;
+    pendingFiles.push({ name: file.name, data: await fileToBase64(file) });
+  }
+  renderAttachChips();
+}
+
 // ---------- streaming a turn ----------
 async function sendMessage(text) {
-  addUserMessage(text);
+  const sentFiles = pendingFiles.map((f) => f.name);
+  addUserMessage(sentFiles.length ? `${text}\n\u{1F4CE} ${sentFiles.join(", ")}` : text);
   const { wrap, chip, bubble } = addAssistantShell();
 
   let resp;
@@ -122,6 +168,7 @@ async function sendMessage(text) {
         prompt: text,
         conversation_id: currentConversationId,
         agent: $("#model-select").value || null,
+        attachments: pendingFiles.length ? pendingFiles : null,
       }),
     });
   } catch (e) {
@@ -129,6 +176,9 @@ async function sendMessage(text) {
     bubble.textContent = "Network error — is the server running?";
     return;
   }
+
+  pendingFiles = [];
+  renderAttachChips();
 
   if (resp.status === 401) {
     window.location.href = "/login";
@@ -176,7 +226,27 @@ function handleEvent(block, ctx) {
     ctx.bubble.textContent = payload.message || "Something went wrong.";
   } else if (event === "done" && !payload.blocked) {
     finalizeChip(ctx.chip, payload);
+    addDownloadButton(ctx.wrap, ctx.bubble);
   }
+}
+
+function addDownloadButton(wrap, bubble) {
+  const text = bubble.textContent.trim();
+  if (!text) return;
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "dl-btn";
+  btn.title = "Antwort als Datei speichern";
+  btn.textContent = "\u2913 speichern";
+  btn.addEventListener("click", () => {
+    const blob = new Blob([bubble.textContent], { type: "text/markdown" });
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "cmn-ai-antwort.md";
+    a.click();
+    URL.revokeObjectURL(a.href);
+  });
+  wrap.appendChild(btn);
 }
 
 // ---------- conversations (chat history) ----------
@@ -420,6 +490,11 @@ promptEl.addEventListener("keydown", (e) => {
     e.preventDefault();
     composer.requestSubmit();
   }
+});
+$("#attach").addEventListener("click", () => $("#attach-input").click());
+$("#attach-input").addEventListener("change", async (e) => {
+  await onFilesPicked(e.target.files);
+  e.target.value = "";
 });
 $("#raise-btn").addEventListener("click", raiseBudget);
 $("#new-chat").addEventListener("click", newChat);

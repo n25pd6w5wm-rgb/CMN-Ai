@@ -39,6 +39,7 @@ from cmn_ai.router.interface import Router
 from cmn_ai.storage.conversations import ConversationBackend, ConversationStore
 from cmn_ai.storage.decisions import DecisionLog
 from cmn_ai.storage.supabase_store import SupabaseConversationStore
+from cmn_ai.web.attachments import Attachment, render_attachments
 from cmn_ai.web.auth import AuthError, SupabaseAuth, build_auth_from_env
 from cmn_ai.web.vault_client import VaultClient, build_vault_client_from_env
 
@@ -111,6 +112,7 @@ class ChatRequest(BaseModel):
     prompt: str
     conversation_id: str | None = None
     agent: str | None = None  # optional user-selected agent/model (else the router decides)
+    attachments: list[Attachment] | None = None  # uploaded files (base64), max 8
 
 
 class RaiseRequest(BaseModel):
@@ -486,6 +488,12 @@ def build_app(state: AppState) -> FastAPI:
         # Pull relevant notes from the on-Pi vault (if configured) as extra context.
         # The stored user message stays the original prompt; only the model sees the notes.
         model_prompt = req.prompt
+        if req.attachments:
+            files_block = render_attachments(req.attachments)
+            model_prompt = (
+                "The user attached these files — read them and use their content:\n\n"
+                f"{files_block}\n\n---\nUser message: {model_prompt}"
+            )
         if state.vault is not None:
             hits = state.vault.search(req.prompt)
             if hits:

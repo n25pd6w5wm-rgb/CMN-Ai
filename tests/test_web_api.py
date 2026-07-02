@@ -291,7 +291,7 @@ def test_service_worker_served_at_root_scope(tmp_path: Path) -> None:
 
 # ---------- authentication (gating, login flow, per-user isolation) ----------
 
-from typing import cast  # noqa: E402
+from typing import Any, cast  # noqa: E402
 
 from cmn_ai.web.auth import AuthError, SupabaseAuth  # noqa: E402
 
@@ -586,3 +586,100 @@ def test_landing_alias_redirects_to_welcome(tmp_path: Path) -> None:
     r = client.get("/landing", follow_redirects=False)
     assert r.status_code == 302
     assert r.headers["location"] == "/welcome"
+
+
+# ---------- attachments: PDFs and text files become model context ----------
+
+
+def _b64(data: bytes) -> str:
+    import base64
+
+    return base64.b64encode(data).decode()
+
+
+def _recording_client(tmp_path: Path) -> tuple[TestClient, Any]:
+    class RecordingAgent:
+        def __init__(self) -> None:
+            self.name = "local"
+            self.model = "m"
+            self.capabilities = frozenset({Capability.CHAT, Capability.CODE})
+            self.cost_per_mtok = FREE
+            self.bucket = Bucket.GENERAL
+            self.active = True
+            self.seen_prompt = ""
+
+        async def run(self, task: Task, *, system: str | None = None) -> AgentResponse:
+            self.seen_prompt = task.prompt
+            return AgentResponse(
+                text="ok",
+                agent=self.name,
+                model=self.model,
+                usage=Usage(1, 1),
+                cost_eur=0.0,
+                bucket=self.bucket,
+            )
+
+    rec = RecordingAgent()
+    settings = Settings(profile="mac", budget=BudgetSettings(monthly_budget_eur=30.0))
+    governor = BudgetGovernor(
+        settings=settings.budget, ledger=Ledger(tmp_path / "l.db"), now=lambda: NOW
+    )
+    state = AppState(
+        settings=settings,
+        agents={"local": rec},
+        router=RuleRouter(),
+        governor=governor,
+        orchestrator=Orchestrator(
+            agents={"local": rec}, router=RuleRouter(), governor=governor, now=lambda: NOW
+        ),
+        conversations=ConversationStore(tmp_path / "c.db"),
+    )
+    return TestClient(build_app(state)), rec
+
+
+def test_chat_text_attachment_reaches_the_model(tmp_path: Path) -> None:
+    client, rec = _recording_client(tmp_path)
+    body = {
+        "prompt": "Fass die Datei zusammen.",
+        "attachments": [{"name": "notizen.txt", "data": _b64(b"Geheimplan: Pi zuerst")}],
+    }
+    with client.stream("POST", "/api/chat", json=body) as resp:
+        assert resp.status_code == 200
+        "".join(resp.iter_text())
+    assert "notizen.txt" in rec.seen_prompt
+    assert "Geheimplan: Pi zuerst" in rec.seen_prompt
+    assert "Fass die Datei zusammen." in rec.seen_prompt
+
+
+def test_chat_pdf_attachment_is_extracted(tmp_path: Path) -> None:
+    import io
+
+    from pypdf import PdfWriter
+
+    writer = PdfWriter()
+    writer.add_blank_page(width=300, height=300)
+    raw = io.BytesIO()
+    writer.write(raw)
+    client, rec = _recording_client(tmp_path)
+    body = {
+        "prompt": "Was steht im PDF?",
+        "attachments": [{"name": "doc.pdf", "data": _b64(raw.getvalue())}],
+    }
+    with client.stream("POST", "/api/chat", json=body) as resp:
+        assert resp.status_code == 200
+        "".join(resp.iter_text())
+    # a blank pdf yields no text, but the file must still be announced to the model
+    assert "doc.pdf" in rec.seen_prompt
+
+
+def test_chat_attachment_text_is_truncated(tmp_path: Path) -> None:
+    client, rec = _recording_client(tmp_path)
+    huge = "x" * 200_000
+    body = {
+        "prompt": "kurz",
+        "attachments": [{"name": "big.txt", "data": _b64(huge.encode())}],
+    }
+    with client.stream("POST", "/api/chat", json=body) as resp:
+        assert resp.status_code == 200
+        "".join(resp.iter_text())
+    assert len(rec.seen_prompt) < 60_000  # capped, not the whole 200k
