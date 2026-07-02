@@ -534,6 +534,34 @@ $("#settings-overlay").addEventListener("click", (e) => {
 $("#set-budget-save").addEventListener("click", saveBudget);
 $("#logout-btn").addEventListener("click", logout);
 $("#vault-upload-btn").addEventListener("click", uploadVault);
+$("#bench-run").addEventListener("click", async () => {
+  const btn = $("#bench-run");
+  const host = $("#bench-results");
+  btn.disabled = true;
+  btn.textContent = "läuft … (bis zu 60 s)";
+  host.innerHTML = "";
+  try {
+    const resp = await fetch("/api/benchmark", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    const data = await resp.json();
+    for (const r of data.results) {
+      const li = document.createElement("li");
+      li.className = "bench-row" + (r.ok ? "" : " bench-fail");
+      li.textContent = r.ok
+        ? `${r.agent} · ${r.model} — ${r.seconds}s · ${(r.cost_eur ?? 0).toFixed(4)} €`
+        : `${r.agent} · ${r.model} — ✗ ${r.error}`;
+      host.appendChild(li);
+    }
+  } catch (e) {
+    host.innerHTML = '<li class="bench-row bench-fail">Speed-Test fehlgeschlagen.</li>';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "Speed-Test starten";
+  }
+});
 
 loadBudget();
 loadModels();

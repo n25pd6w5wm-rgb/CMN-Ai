@@ -115,6 +115,10 @@ class ChatRequest(BaseModel):
     attachments: list[Attachment] | None = None  # uploaded files (base64), max 8
 
 
+class BenchmarkRequest(BaseModel):
+    prompt: str | None = None
+
+
 class ExportRequest(BaseModel):
     content: str
     format: Literal["pdf", "pptx"]
@@ -485,6 +489,62 @@ def build_app(state: AppState) -> FastAPI:
             raise HTTPException(404, "conversation not found")
         store.delete(conversation_id)
         return {"ok": True}
+
+    @app.post("/api/benchmark")
+    async def benchmark(req: BenchmarkRequest) -> dict[str, Any]:
+        """Race the same prompt across all active agents; fastest first.
+
+        Successful paid runs are billed like normal chats. Agents whose budget
+        bucket can't afford the run are skipped instead of silently spending.
+        """
+        import time
+
+        from cmn_ai.orchestrator import SYSTEM_PROMPT
+
+        prompt = (req.prompt or "").strip() or (
+            "Antworte mit genau einem kurzen Satz: Was ist ein Dirigent?"
+        )
+        task = Task(prompt=prompt)
+
+        async def run_one(name: str, agent: Agent) -> dict[str, Any]:
+            cost = agent.cost_per_mtok
+            is_free = cost.input_eur == 0 and cost.output_eur == 0
+            est = 0.0 if is_free else cost.estimate(max(1, len(prompt) // 4), 200)
+            if not is_free and not state.governor.can_spend(agent.bucket, est):
+                return {"agent": name, "model": agent.model, "ok": False, "error": "budget"}
+            start = time.perf_counter()
+            try:
+                response = await agent.run(task, system=SYSTEM_PROMPT)
+            except Exception as exc:
+                return {
+                    "agent": name,
+                    "model": agent.model,
+                    "ok": False,
+                    "seconds": round(time.perf_counter() - start, 2),
+                    "error": str(exc)[:160],
+                }
+            state.governor.record(
+                response.bucket,
+                response.agent,
+                response.model,
+                response.usage,
+                eur=response.cost_eur,
+            )
+            return {
+                "agent": name,
+                "model": response.model,
+                "ok": True,
+                "seconds": round(time.perf_counter() - start, 3),
+                "cost_eur": response.cost_eur,
+                "tokens_out": response.usage.tokens_out,
+                "answer": response.text[:200],
+            }
+
+        import asyncio
+
+        rows = await asyncio.gather(*(run_one(n, a) for n, a in state.agents.items() if a.active))
+        ranked = sorted(rows, key=lambda r: (not r["ok"], r.get("seconds", 9e9)))
+        return {"prompt": prompt, "results": ranked}
 
     @app.post("/api/export")
     async def export_document(req: ExportRequest) -> Response:

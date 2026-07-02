@@ -749,3 +749,58 @@ def test_reset_endpoint_sets_password_or_rejects(tmp_path: Path) -> None:
     assert fake.new_password == "NeuUndSicher9"
     bad = client.post("/api/auth/reset", json={"access_token": "nope", "password": "NeuUndSicher9"})
     assert bad.status_code == 401
+
+
+# ---------- benchmark: which agent answers fastest ----------
+
+
+def test_benchmark_ranks_agents_by_speed_and_records_spend(tmp_path: Path) -> None:
+    import asyncio
+
+    class SlowAgent(FakeAgent):
+        def __init__(self, name: str, delay: float, **kw: object) -> None:
+            super().__init__(name, **kw)  # type: ignore[arg-type]
+            self._delay = delay
+
+        async def run(self, task: Task, *, system: str | None = None) -> AgentResponse:
+            await asyncio.sleep(self._delay)
+            return await super().run(task, system=system)
+
+    class DeadAgent(FakeAgent):
+        async def run(self, task: Task, *, system: str | None = None) -> AgentResponse:
+            raise ConnectionError("tunnel down")
+
+    fast = SlowAgent("fast", 0.0, capabilities={Capability.CHAT}, cost=FREE, bucket=Bucket.GENERAL)
+    slow = SlowAgent(
+        "slow",
+        0.05,
+        capabilities={Capability.CHAT},
+        cost=CostPerMTok(2.8, 13.8),
+        bucket=Bucket.GENERAL,
+    )
+    dead = DeadAgent("dead", capabilities={Capability.CHAT}, cost=FREE, bucket=Bucket.GENERAL)
+
+    settings = Settings(profile="mac", budget=BudgetSettings(monthly_budget_eur=30.0))
+    governor = BudgetGovernor(
+        settings=settings.budget, ledger=Ledger(tmp_path / "l.db"), now=lambda: NOW
+    )
+    agents = {"fast": fast, "slow": slow, "dead": dead}
+    state = AppState(
+        settings=settings,
+        agents=agents,
+        router=RuleRouter(),
+        governor=governor,
+        orchestrator=Orchestrator(
+            agents=agents, router=RuleRouter(), governor=governor, now=lambda: NOW
+        ),
+    )
+    client = TestClient(build_app(state))
+
+    data = client.post("/api/benchmark", json={}).json()
+    rows = data["results"]
+    assert [r["agent"] for r in rows if r["ok"]] == ["fast", "slow"]  # fastest first
+    assert rows[0]["seconds"] < rows[1]["seconds"]
+    dead_row = next(r for r in rows if r["agent"] == "dead")
+    assert dead_row["ok"] is False and "tunnel" in dead_row["error"]
+    # the paid run was billed
+    assert governor.status().buckets[Bucket.GENERAL].spent_eur > 0
