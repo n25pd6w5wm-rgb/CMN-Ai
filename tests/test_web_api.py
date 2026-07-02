@@ -683,3 +683,32 @@ def test_chat_attachment_text_is_truncated(tmp_path: Path) -> None:
         assert resp.status_code == 200
         "".join(resp.iter_text())
     assert len(rec.seen_prompt) < 60_000  # capped, not the whole 200k
+
+
+# ---------- export: answers become real documents (pdf/pptx) ----------
+
+
+def test_export_pdf(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    r = client.post(
+        "/api/export",
+        json={"content": "# Bericht\n\nHallo Welt mit Umlauten: äöüß.", "format": "pdf"},
+    )
+    assert r.status_code == 200
+    assert r.content[:4] == b"%PDF"
+    assert "attachment" in r.headers["content-disposition"]
+
+
+def test_export_pptx(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    content = "# Quartalsbericht\n\n## Lage\n- gut\n- stabil\n\n## Ausblick\n- rosig"
+    r = client.post("/api/export", json={"content": content, "format": "pptx"})
+    assert r.status_code == 200
+    assert r.content[:2] == b"PK"  # pptx is a zip container
+    assert "presentationml" in r.headers["content-type"]
+
+
+def test_export_rejects_unknown_format(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    r = client.post("/api/export", json={"content": "x", "format": "exe"})
+    assert r.status_code == 422

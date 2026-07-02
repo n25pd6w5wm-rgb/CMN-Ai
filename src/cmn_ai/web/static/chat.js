@@ -230,23 +230,51 @@ function handleEvent(block, ctx) {
   }
 }
 
+function downloadBlob(blob, filename) {
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+async function exportAnswer(text, format, btn) {
+  btn.disabled = true;
+  try {
+    const resp = await fetch("/api/export", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: text, format }),
+    });
+    if (!resp.ok) throw new Error(`export failed: ${resp.status}`);
+    downloadBlob(await resp.blob(), `cmn-ai-antwort.${format}`);
+  } catch (e) {
+    alert("Export fehlgeschlagen — bitte noch einmal versuchen.");
+  } finally {
+    btn.disabled = false;
+  }
+}
+
 function addDownloadButton(wrap, bubble) {
   const text = bubble.textContent.trim();
   if (!text) return;
-  const btn = document.createElement("button");
-  btn.type = "button";
-  btn.className = "dl-btn";
-  btn.title = "Antwort als Datei speichern";
-  btn.textContent = "\u2913 speichern";
-  btn.addEventListener("click", () => {
-    const blob = new Blob([bubble.textContent], { type: "text/markdown" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "cmn-ai-antwort.md";
-    a.click();
-    URL.revokeObjectURL(a.href);
-  });
-  wrap.appendChild(btn);
+  const row = document.createElement("div");
+  row.className = "dl-row";
+  const mk = (label, handler) => {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "dl-btn";
+    btn.title = `Antwort als ${label} speichern`;
+    btn.textContent = label;
+    btn.addEventListener("click", () => handler(btn));
+    row.appendChild(btn);
+  };
+  mk("\u2913 md", () =>
+    downloadBlob(new Blob([bubble.textContent], { type: "text/markdown" }), "cmn-ai-antwort.md")
+  );
+  mk("\u2913 pdf", (btn) => exportAnswer(bubble.textContent, "pdf", btn));
+  mk("\u2913 pptx", (btn) => exportAnswer(bubble.textContent, "pptx", btn));
+  wrap.appendChild(row);
 }
 
 // ---------- conversations (chat history) ----------

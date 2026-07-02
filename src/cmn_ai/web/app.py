@@ -16,7 +16,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import FastAPI, HTTPException, Request, Response
 from fastapi.responses import (
@@ -113,6 +113,12 @@ class ChatRequest(BaseModel):
     conversation_id: str | None = None
     agent: str | None = None  # optional user-selected agent/model (else the router decides)
     attachments: list[Attachment] | None = None  # uploaded files (base64), max 8
+
+
+class ExportRequest(BaseModel):
+    content: str
+    format: Literal["pdf", "pptx"]
+    filename: str | None = None  # without extension
 
 
 class RaiseRequest(BaseModel):
@@ -446,6 +452,23 @@ def build_app(state: AppState) -> FastAPI:
             raise HTTPException(404, "conversation not found")
         store.delete(conversation_id)
         return {"ok": True}
+
+    @app.post("/api/export")
+    async def export_document(req: ExportRequest) -> Response:
+        from cmn_ai.web.export import to_pdf, to_pptx
+
+        name = (req.filename or "cmn-ai-antwort").strip() or "cmn-ai-antwort"
+        if req.format == "pdf":
+            payload = to_pdf(req.content)
+            media = "application/pdf"
+        else:
+            payload = to_pptx(req.content)
+            media = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        return Response(
+            content=payload,
+            media_type=media,
+            headers={"Content-Disposition": f'attachment; filename="{name}.{req.format}"'},
+        )
 
     @app.get("/api/vault/status")
     async def vault_status() -> dict[str, Any]:

@@ -574,3 +574,6 @@ html, body {
   padding: 3px 10px; cursor: pointer;
 }
 .dl-btn:hover { color: var(--ink); border-color: var(--ink-dim); }
+
+.dl-row { display: flex; gap: 6px; margin-top: 4px; }
+.dl-btn:disabled { opacity: 0.5; cursor: wait; }
