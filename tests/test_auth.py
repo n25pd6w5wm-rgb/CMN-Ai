@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import httpx
 import pytest
 import respx
@@ -83,3 +85,43 @@ def test_build_auth_falls_back_to_settings_values(monkeypatch: pytest.MonkeyPatc
     auth = build_auth_from_env(fallback_url=_URL, fallback_anon="anon")
     assert auth is not None
     assert build_auth_from_env(fallback_url=_URL, fallback_anon=None) is None
+
+
+@respx.mock
+async def test_recover_posts_to_gotrue() -> None:
+    route = respx.post(f"{_URL}/auth/v1/recover").mock(return_value=httpx.Response(200, json={}))
+    await _auth().recover("p@example.com", redirect_to="https://app.example/reset")
+    assert route.called
+    body = json.loads(route.calls[0].request.content)
+    assert body["email"] == "p@example.com"
+    assert "redirect_to=https" in str(route.calls[0].request.url)
+
+
+@respx.mock
+async def test_recover_swallows_provider_errors() -> None:
+    # Whether the address exists must not be observable from the outside.
+    respx.post(f"{_URL}/auth/v1/recover").mock(return_value=httpx.Response(429, json={}))
+    await _auth().recover("p@example.com", redirect_to=None)  # must not raise
+
+
+@respx.mock
+async def test_update_password_uses_recovery_token() -> None:
+    route = respx.put(f"{_URL}/auth/v1/user").mock(return_value=httpx.Response(200, json={}))
+    await _auth().update_password("recov-token", "NewPass!234")
+    assert route.called
+    req = route.calls[0].request
+    assert req.headers["authorization"] == "Bearer recov-token"
+    assert json.loads(req.content)["password"] == "NewPass!234"
+
+
+@respx.mock
+async def test_update_password_raises_on_failure() -> None:
+    respx.put(f"{_URL}/auth/v1/user").mock(
+        return_value=httpx.Response(401, json={"msg": "token expired"})
+    )
+    try:
+        await _auth().update_password("bad", "NewPass!234")
+    except AuthError:
+        pass
+    else:
+        raise AssertionError("expected AuthError")

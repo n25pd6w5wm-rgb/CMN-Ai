@@ -39,6 +39,7 @@
           />
           <button type="submit" id="auth-submit">Log in</button>
           <p class="auth-msg" id="auth-msg" role="status"></p>
+          <button type="button" class="auth-link" id="forgot">Passwort vergessen?</button>
         </form>
       </div>
       <p class="auth-foot">Cost-governed multi-AI · local-first</p>
@@ -48,6 +49,23 @@
       "use strict";
       let mode = "login";
       const $ = (s) => document.querySelector(s);
+
+      document.getElementById("forgot").addEventListener("click", async () => {
+        const email = $("#email").value.trim();
+        const msg = $("#auth-msg");
+        if (!email) {
+          msg.className = "auth-msg error";
+          msg.textContent = "Gib oben deine E-Mail-Adresse ein, dann schicken wir dir einen Reset-Link.";
+          return;
+        }
+        await fetch("/api/auth/recover", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ email }),
+        }).catch(() => {});
+        msg.className = "auth-msg ok";
+        msg.textContent = "Wenn die Adresse ein Konto hat, ist ein Reset-Link unterwegs (auch im Spam nachsehen).";
+      });
       const submit = $("#auth-submit");
       const msg = $("#auth-msg");
 

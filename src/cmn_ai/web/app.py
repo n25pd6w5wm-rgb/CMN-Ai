@@ -134,6 +134,15 @@ class AuthRequest(BaseModel):
     password: str
 
 
+class RecoverRequest(BaseModel):
+    email: str
+
+
+class ResetRequest(BaseModel):
+    access_token: str
+    password: str
+
+
 class VaultNote(BaseModel):
     path: str
     content: str
@@ -193,6 +202,7 @@ def build_app(state: AppState) -> FastAPI:
     # Paths reachable without a session (so the login wall + healthcheck + PWA work).
     _open_paths = {
         "/login",
+        "/reset",
         "/welcome",
         "/landing",
         "/impressum",
@@ -292,6 +302,29 @@ def build_app(state: AppState) -> FastAPI:
             _set_session(response, str(token), secure=request.url.scheme == "https")
             return {"user": {"email": (result.get("user") or {}).get("email")}, "signed_in": True}
         return {"signed_in": False, "confirm_email": True}
+
+    @app.post("/api/auth/recover")
+    async def auth_recover(req: RecoverRequest, request: Request) -> dict[str, Any]:
+        # Always answers ok — whether the address exists must stay unobservable.
+        if state.auth is not None:
+            await state.auth.recover(req.email, redirect_to=f"{request.base_url}reset")
+        return {"ok": True}
+
+    @app.post("/api/auth/reset")
+    async def auth_reset(req: ResetRequest) -> dict[str, Any]:
+        if state.auth is None:
+            raise HTTPException(400, "authentication is not configured")
+        try:
+            await state.auth.update_password(req.access_token, req.password)
+        except AuthError as exc:
+            raise HTTPException(401, str(exc)) from exc
+        return {"ok": True}
+
+    @app.get("/reset", response_class=HTMLResponse, include_in_schema=False)
+    async def reset_page(request: Request) -> HTMLResponse:
+        css = _WEB_DIR / "static" / "chat.css"
+        css_v = int(css.stat().st_mtime) if css.exists() else 0
+        return _TEMPLATES.TemplateResponse(request, "reset.html", {"css_v": css_v})
 
     @app.post("/api/auth/logout")
     async def auth_logout(response: Response) -> dict[str, Any]:

@@ -324,6 +324,14 @@ class FakeAuth:
     async def get_user(self, token: str | None) -> dict[str, object] | None:
         return self.tokens.get(token) if token else None
 
+    async def recover(self, email: str, *, redirect_to: str | None) -> None:
+        self.recovered = (email, redirect_to)
+
+    async def update_password(self, recovery_token: str, new_password: str) -> None:
+        if recovery_token != "recov-ok":
+            raise AuthError("token expired")
+        self.new_password = new_password
+
 
 def _auth_client(tmp_path: Path) -> tuple[TestClient, FakeAuth]:
     base = _client(tmp_path)
@@ -712,3 +720,32 @@ def test_export_rejects_unknown_format(tmp_path: Path) -> None:
     client = _client(tmp_path)
     r = client.post("/api/export", json={"content": "x", "format": "exe"})
     assert r.status_code == 422
+
+
+# ---------- password reset ----------
+
+
+def test_recover_endpoint_is_open_and_opaque(tmp_path: Path) -> None:
+    client, fake = _auth_client(tmp_path)
+    r = client.post("/api/auth/recover", json={"email": "a@b.de"})
+    assert r.status_code == 200 and r.json() == {"ok": True}
+    assert fake.recovered[0] == "a@b.de"
+    assert fake.recovered[1] and fake.recovered[1].endswith("/reset")
+
+
+def test_reset_page_is_public(tmp_path: Path) -> None:
+    client, _ = _auth_client(tmp_path)
+    r = client.get("/reset", follow_redirects=False)
+    assert r.status_code == 200
+    assert "Passwort" in r.text
+
+
+def test_reset_endpoint_sets_password_or_rejects(tmp_path: Path) -> None:
+    client, fake = _auth_client(tmp_path)
+    ok = client.post(
+        "/api/auth/reset", json={"access_token": "recov-ok", "password": "NeuUndSicher9"}
+    )
+    assert ok.status_code == 200
+    assert fake.new_password == "NeuUndSicher9"
+    bad = client.post("/api/auth/reset", json={"access_token": "nope", "password": "NeuUndSicher9"})
+    assert bad.status_code == 401

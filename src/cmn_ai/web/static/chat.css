@@ -577,3 +577,9 @@ html, body {
 
 .dl-row { display: flex; gap: 6px; margin-top: 4px; }
 .dl-btn:disabled { opacity: 0.5; cursor: wait; }
+
+.auth-link {
+  background: none; border: 0; color: var(--ink-faint); font-size: 0.82rem;
+  cursor: pointer; margin-top: 10px; text-align: center; width: 100%;
+}
+.auth-link:hover { color: var(--accent); text-decoration: underline; }

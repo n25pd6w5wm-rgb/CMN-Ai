@@ -69,6 +69,35 @@ class SupabaseAuth:
             raise AuthError(_error_message(resp))
         return dict(resp.json())
 
+    async def recover(self, email: str, *, redirect_to: str | None) -> None:
+        """Ask GoTrue to send a password-reset mail.
+
+        Never raises on provider errors: whether an address exists (or the mailer is
+        rate-limited) must not be observable by the caller of our public endpoint.
+        """
+        params = {"redirect_to": redirect_to} if redirect_to else None
+        try:
+            async with httpx.AsyncClient(timeout=self._timeout) as client:
+                await client.post(
+                    f"{self._base}/recover",
+                    headers=self._headers(),
+                    params=params,
+                    json={"email": email},
+                )
+        except httpx.HTTPError:
+            pass
+
+    async def update_password(self, recovery_token: str, new_password: str) -> None:
+        """Set a new password using the access token from the reset-mail link."""
+        async with httpx.AsyncClient(timeout=self._timeout) as client:
+            resp = await client.put(
+                f"{self._base}/user",
+                headers=self._headers(recovery_token),
+                json={"password": new_password},
+            )
+        if resp.status_code != 200:
+            raise AuthError(_error_message(resp))
+
     async def get_user(self, token: str | None) -> dict[str, Any] | None:
         """Resolve an access token to its user, or None if missing/invalid."""
         if not token:

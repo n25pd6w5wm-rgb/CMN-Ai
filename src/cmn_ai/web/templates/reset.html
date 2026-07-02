@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Neues Passwort — cmn·ai</title>
+    <link rel="icon" href="/static/icons/icon-192.png" />
+    <meta name="theme-color" content="#0c0d10" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <link rel="stylesheet" href="/static/chat.css?v={{ css_v }}" />
+  </head>
+  <body class="auth-body">
+    <main class="auth-card">
+      <div class="brand-mark" aria-label="CMN ai">{% include "_logo.svg" %}</div>
+      <h1 class="auth-title">Neues Passwort setzen</h1>
+      <form id="reset-form">
+        <input
+          id="password"
+          type="password"
+          placeholder="Neues Passwort (min. 8 Zeichen)"
+          autocomplete="new-password"
+          minlength="8"
+          required
+        />
+        <button type="submit" id="reset-submit">Passwort speichern</button>
+        <p class="auth-msg" id="reset-msg" role="status"></p>
+      </form>
+    </main>
+    <script>
+      const $ = (sel) => document.querySelector(sel);
+      // Supabase puts the recovery token in the URL hash: #access_token=…&type=recovery
+      const params = new URLSearchParams(window.location.hash.slice(1));
+      const token = params.get("access_token");
+      const msg = $("#reset-msg");
+      if (!token) {
+        msg.className = "auth-msg error";
+        msg.textContent =
+          "Kein gültiger Reset-Link. Fordere auf der Anmeldeseite einen neuen an.";
+      }
+      $("#reset-form").addEventListener("submit", async (e) => {
+        e.preventDefault();
+        if (!token) return;
+        msg.className = "auth-msg";
+        msg.textContent = "Speichere …";
+        const resp = await fetch("/api/auth/reset", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ access_token: token, password: $("#password").value }),
+        });
+        if (resp.ok) {
+          msg.className = "auth-msg ok";
+          msg.textContent = "Passwort geändert — weiter zur Anmeldung …";
+          setTimeout(() => (window.location.href = "/login"), 1200);
+        } else {
+          const data = await resp.json().catch(() => ({}));
+          msg.className = "auth-msg error";
+          msg.textContent = data.detail || "Der Link ist abgelaufen — bitte neu anfordern.";
+        }
+      });
+    </script>
+  </body>
+</html>
