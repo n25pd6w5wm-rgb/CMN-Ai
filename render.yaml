@@ -19,10 +19,13 @@ services:
         sync: false
       - key: VAULT_HOST # the Pi's reachable vault-service URL (Obsidian notes stay on the Pi)
         sync: false
+      # Public (client-side) Supabase values — safe to commit, required for the
+      # login wall. Without SUPABASE_ANON_KEY the app silently ran without auth,
+      # which broke conversation writes (user_id is NOT NULL in Supabase).
       - key: SUPABASE_URL
-        sync: false
-      - key: SUPABASE_ANON_KEY # public key for the login/signup page
-        sync: false
+        value: https://gamrqvueirvkjsksbsar.supabase.co
+      - key: SUPABASE_ANON_KEY
+        value: sb_publishable_FHFlcz7xBBodhhraCGsnkA_gD3vINGe
       - key: SUPABASE_KEY # service-role key, loads model API keys at startup
         sync: false
       - key: ANTHROPIC_API_KEY

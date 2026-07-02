@@ -340,7 +340,11 @@ def build_app(state: AppState) -> FastAPI:
     @app.get("/api/conversations")
     async def list_conversations(request: Request) -> dict[str, Any]:
         store = state.conversations
-        return {"conversations": store.list_all(_uid(request)) if store else []}
+        try:
+            return {"conversations": store.list_all(_uid(request)) if store else []}
+        except Exception as exc:  # degraded store → empty sidebar, not a dead app
+            print(f"[cmn-ai] conversation store unavailable ({exc!r}); returning empty list")
+            return {"conversations": []}
 
     @app.post("/api/conversations")
     async def new_conversation(request: Request) -> dict[str, Any]:
@@ -397,17 +401,21 @@ def build_app(state: AppState) -> FastAPI:
         cid: str | None = None
         history: tuple[Message, ...] = ()
         if store is not None:
-            cid = (
-                req.conversation_id
-                if req.conversation_id and store.exists(req.conversation_id, uid)
-                else store.create(at=now, user_id=uid)
-            )
-            history = tuple(
-                Message(role=m["role"], content=m["content"])
-                for m in store.messages(cid)
-                if m["role"] in ("user", "assistant")
-            )
-            store.add_message(cid, "user", req.prompt, at=now, user_id=uid)
+            try:
+                cid = (
+                    req.conversation_id
+                    if req.conversation_id and store.exists(req.conversation_id, uid)
+                    else store.create(at=now, user_id=uid)
+                )
+                history = tuple(
+                    Message(role=m["role"], content=m["content"])
+                    for m in store.messages(cid)
+                    if m["role"] in ("user", "assistant")
+                )
+                store.add_message(cid, "user", req.prompt, at=now, user_id=uid)
+            except Exception as exc:  # persistence must never block the answer itself
+                print(f"[cmn-ai] conversation store failed ({exc!r}); chatting without history")
+                cid, history = None, ()
 
         # Pull relevant notes from the on-Pi vault (if configured) as extra context.
         # The stored user message stays the original prompt; only the model sees the notes.
@@ -448,16 +456,19 @@ def build_app(state: AppState) -> FastAPI:
             for word in response.text.split(" "):
                 yield _sse("delta", {"text": word + " "})
             if store is not None and cid is not None:
-                store.add_message(
-                    cid,
-                    "assistant",
-                    response.text,
-                    at=datetime.now(UTC),
-                    agent=response.agent,
-                    model=response.model,
-                    cost_eur=response.cost_eur,
-                    user_id=uid,
-                )
+                try:
+                    store.add_message(
+                        cid,
+                        "assistant",
+                        response.text,
+                        at=datetime.now(UTC),
+                        agent=response.agent,
+                        model=response.model,
+                        cost_eur=response.cost_eur,
+                        user_id=uid,
+                    )
+                except Exception as exc:  # the user already has the answer on screen
+                    print(f"[cmn-ai] failed to persist assistant message ({exc!r})")
             yield _sse(
                 "done",
                 {
@@ -474,6 +485,30 @@ def build_app(state: AppState) -> FastAPI:
     return app
 
 
+def choose_conversation_backend(
+    db_path: Path,
+    *,
+    supabase_url: str | None,
+    supabase_key: str | None,
+    auth: SupabaseAuth | None,
+) -> ConversationBackend:
+    """Pick where conversations live.
+
+    Supabase requires a logged-in user (``cmn_conversations.user_id`` is NOT NULL and
+    RLS-scoped), so it is only used when auth is configured too. Supabase creds without
+    ``SUPABASE_ANON_KEY`` would mean anonymous users writing NULL user_ids — every
+    insert would fail — so that combination falls back to local SQLite, loudly.
+    """
+    if supabase_url and supabase_key:
+        if auth is not None:
+            return SupabaseConversationStore(supabase_url, supabase_key)
+        print(
+            "[cmn-ai] SUPABASE_URL/KEY set but SUPABASE_ANON_KEY missing → no login, "
+            "no user ids. Using local SQLite for conversations instead of Supabase."
+        )
+    return ConversationStore(db_path)
+
+
 def build_state_from_settings(settings: Settings | None = None) -> AppState:
     """Wire real agents, router, governor and orchestrator from configuration."""
     from cmn_ai.agents.factory import build_agents
@@ -488,13 +523,13 @@ def build_state_from_settings(settings: Settings | None = None) -> AppState:
     agents = build_agents(settings, governor)
     router = build_router(settings)
     decision_log = DecisionLog(db_path)
-    # Hosted (multi-user) backend if Supabase is configured; else local SQLite.
-    supabase_url = os.environ.get("SUPABASE_URL")
-    supabase_key = os.environ.get("SUPABASE_KEY")
-    conversations: ConversationBackend = (
-        SupabaseConversationStore(supabase_url, supabase_key)
-        if supabase_url and supabase_key
-        else ConversationStore(db_path)
+    # Hosted (multi-user) backend if Supabase *and* auth are configured; else SQLite.
+    auth = build_auth_from_env()
+    conversations = choose_conversation_backend(
+        db_path,
+        supabase_url=os.environ.get("SUPABASE_URL"),
+        supabase_key=os.environ.get("SUPABASE_KEY"),
+        auth=auth,
     )
     orchestrator = Orchestrator(
         agents=agents, router=router, governor=governor, decision_log=decision_log
@@ -507,7 +542,7 @@ def build_state_from_settings(settings: Settings | None = None) -> AppState:
         orchestrator=orchestrator,
         decision_log=decision_log,
         conversations=conversations,
-        auth=build_auth_from_env(),
+        auth=auth,
         vault=build_vault_client_from_env(),
     )
 

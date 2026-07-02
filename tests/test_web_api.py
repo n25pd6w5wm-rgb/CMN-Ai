@@ -14,9 +14,10 @@ from cmn_ai.config import BudgetSettings, Settings
 from cmn_ai.core import AgentResponse, Bucket, Capability, CostPerMTok, Task, Usage
 from cmn_ai.orchestrator import Orchestrator
 from cmn_ai.router.rule_router import RuleRouter
-from cmn_ai.storage.conversations import ConversationStore
+from cmn_ai.storage.conversations import ConversationBackend, ConversationStore
 from cmn_ai.storage.decisions import DecisionLog
-from cmn_ai.web.app import AppState, build_app
+from cmn_ai.storage.supabase_store import SupabaseConversationStore
+from cmn_ai.web.app import AppState, build_app, choose_conversation_backend
 
 NOW = datetime(2026, 5, 30, 12, 0, tzinfo=UTC)
 FREE = CostPerMTok(0.0, 0.0)
@@ -489,3 +490,80 @@ def test_vault_upload_forwards_to_pi(tmp_path: Path) -> None:
     assert resp.status_code == 200
     assert resp.json()["saved"] == 1
     assert fake.uploaded == [{"path": "n.md", "content": "hello"}]
+
+
+# ---------- resilience: a broken conversation store must never kill the chat ----------
+
+
+class BrokenStore:
+    """Conversation backend whose every call fails (e.g. Supabase misconfigured)."""
+
+    def _boom(self, *args: object, **kwargs: object) -> object:
+        raise RuntimeError("store unavailable")
+
+    create = _boom
+    list_all = _boom
+    exists = _boom
+    messages = _boom
+    add_message = _boom
+    rename = _boom
+    delete = _boom
+
+
+def test_chat_still_answers_when_store_is_broken(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    client.app.state.cmn.conversations = cast(  # type: ignore[attr-defined]
+        ConversationBackend, BrokenStore()
+    )
+    with client.stream("POST", "/api/chat", json={"prompt": "hello there"}) as resp:
+        assert resp.status_code == 200
+        body = "".join(resp.iter_text())
+    assert "event: done" in body
+    deltas = [
+        json.loads(line[len("data: ") :])["text"]
+        for line in body.splitlines()
+        if line.startswith("data: ") and '"text"' in line
+    ]
+    assert "".join(deltas).strip() == "hello world from agent"
+
+
+def test_list_conversations_degrades_to_empty_when_store_is_broken(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    client.app.state.cmn.conversations = cast(  # type: ignore[attr-defined]
+        ConversationBackend, BrokenStore()
+    )
+    resp = client.get("/api/conversations")
+    assert resp.status_code == 200
+    assert resp.json() == {"conversations": []}
+
+
+# ---------- backend selection: Supabase store only together with auth ----------
+
+
+def test_backend_uses_sqlite_when_auth_is_missing(tmp_path: Path) -> None:
+    # Supabase creds without SUPABASE_ANON_KEY → open mode → user_id would be NULL,
+    # which the cmn_conversations schema forbids. Fall back to local SQLite.
+    backend = choose_conversation_backend(
+        tmp_path / "conv.db",
+        supabase_url="https://x.supabase.co",
+        supabase_key="sb_secret_x",
+        auth=None,
+    )
+    assert isinstance(backend, ConversationStore)
+
+
+def test_backend_uses_supabase_when_fully_configured(tmp_path: Path) -> None:
+    backend = choose_conversation_backend(
+        tmp_path / "conv.db",
+        supabase_url="https://x.supabase.co",
+        supabase_key="sb_secret_x",
+        auth=cast(SupabaseAuth, FakeAuth()),
+    )
+    assert isinstance(backend, SupabaseConversationStore)
+
+
+def test_backend_uses_sqlite_without_supabase_creds(tmp_path: Path) -> None:
+    backend = choose_conversation_backend(
+        tmp_path / "conv.db", supabase_url=None, supabase_key=None, auth=None
+    )
+    assert isinstance(backend, ConversationStore)
