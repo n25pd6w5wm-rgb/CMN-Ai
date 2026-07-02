@@ -9,6 +9,7 @@ decision short-circuits: no agent runs and nothing is billed.
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from dataclasses import replace
 from datetime import UTC, datetime
 
 from cmn_ai.agents.base import Agent
@@ -80,15 +81,40 @@ class Orchestrator:
     async def handle(
         self, task: Task, *, agent_override: str | None = None
     ) -> tuple[RouteDecision, AgentResponse | None]:
-        """Route the task, run the chosen agent, and book its spend."""
+        """Route the task, run the chosen agent, and book its spend.
+
+        If the router-chosen agent fails to run (e.g. the local model's tunnel is
+        down), the request fails over to the next best agent instead of erroring —
+        the decision then carries ``fell_back=True`` and names the dead agent, so
+        the UI stays transparent about what happened. An explicitly user-selected
+        agent is never silently rerouted.
+        """
         decision = self.route(task, agent_override=agent_override)
         if decision.blocked:
             self._log(task.prompt, decision, None)
             return decision, None
 
         task = await self._router.optimize_prompt(task)
-        agent = self._agents[decision.agent]
-        response = await agent.run(task, system=SYSTEM_PROMPT)
+        candidates = dict(self._agents)
+        while True:
+            agent = self._agents[decision.agent]
+            try:
+                response = await agent.run(task, system=SYSTEM_PROMPT)
+                break
+            except Exception:
+                candidates.pop(decision.agent, None)
+                if agent_override or not candidates:
+                    raise
+                retry = self._router.select(
+                    task, decision.classification, candidates, self._governor
+                )
+                if retry.blocked:
+                    raise
+                decision = replace(
+                    retry,
+                    reason=f"{agent.name} unavailable — rerouted: {retry.reason}",
+                    fell_back=True,
+                )
         self._governor.record(
             response.bucket,
             response.agent,

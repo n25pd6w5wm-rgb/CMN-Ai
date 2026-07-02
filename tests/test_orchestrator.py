@@ -106,3 +106,72 @@ async def test_blocked_decision_runs_no_agent_and_records_nothing(tmp_path: Path
     assert decision.blocked is True
     assert response is None
     assert coding.calls == 0
+
+
+# ---------- failover: a dead agent must not kill the request ----------
+
+
+class DownAgent(FakeAgent):
+    """Agent whose backend is unreachable (e.g. Pi tunnel down)."""
+
+    async def run(self, task: Task, *, system: str | None = None) -> AgentResponse:
+        self.calls += 1
+        raise ConnectionError("host unreachable")
+
+
+def _down_local() -> DownAgent:
+    return DownAgent(
+        "local", capabilities={Capability.CHAT, Capability.CODE}, cost=FREE, bucket=Bucket.GENERAL
+    )
+
+
+def _paid_chat(name: str = "anthropic") -> FakeAgent:
+    return FakeAgent(
+        name,
+        capabilities={Capability.CHAT, Capability.CODE},
+        cost=CostPerMTok(2.8, 13.8),
+        bucket=Bucket.GENERAL,
+        reply="paid answer",
+    )
+
+
+async def test_failover_to_next_agent_when_selected_agent_is_down(tmp_path: Path) -> None:
+    gov = _governor(tmp_path)
+    local, paid = _down_local(), _paid_chat()
+    orch = Orchestrator(
+        agents={"local": local, "anthropic": paid}, router=RuleRouter(), governor=gov
+    )
+    decision, response = await orch.handle(Task(prompt="hello there"))
+    assert local.calls == 1  # tried first (free, low complexity)
+    assert response is not None and response.text == "paid answer"
+    assert decision.agent == "anthropic"
+    assert decision.fell_back is True
+    assert "local" in decision.reason  # transparent about what happened
+    # the successful paid run is billed, the failed free one is not
+    assert gov.status().buckets[Bucket.GENERAL].spent_eur > 0
+
+
+async def test_failover_raises_when_no_agent_is_left(tmp_path: Path) -> None:
+    gov = _governor(tmp_path)
+    orch = Orchestrator(agents={"local": _down_local()}, router=RuleRouter(), governor=gov)
+    try:
+        await orch.handle(Task(prompt="hello there"))
+    except ConnectionError:
+        pass
+    else:
+        raise AssertionError("expected the original failure to surface")
+
+
+async def test_no_failover_for_user_selected_agent(tmp_path: Path) -> None:
+    gov = _governor(tmp_path)
+    local, paid = _down_local(), _paid_chat()
+    orch = Orchestrator(
+        agents={"local": local, "anthropic": paid}, router=RuleRouter(), governor=gov
+    )
+    try:
+        await orch.handle(Task(prompt="hello there"), agent_override="local")
+    except ConnectionError:
+        pass
+    else:
+        raise AssertionError("an explicit agent choice must not be silently rerouted")
+    assert paid.calls == 0
