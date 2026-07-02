@@ -63,6 +63,37 @@ EOF
   sudo systemctl enable --now "cloudflared-$name"
 }
 
+# Token mode: tokens from the Zero-Trust dashboard (or fetched via API) in
+# ~/.config/cmn-ai/cf-tunnels.env as CF_TOKEN_OLLAMA=… / CF_TOKEN_VAULT=…
+TOKEN_FILE="$HOME/.config/cmn-ai/cf-tunnels.env"
+[ -f "$TOKEN_FILE" ] && . "$TOKEN_FILE"
+
+install_token_tunnel() { # $1=name  $2=token
+  local name=$1 token=$2
+  sudo tee "/etc/systemd/system/cloudflared-$name.service" >/dev/null <<EOF
+[Unit]
+Description=Cloudflare tunnel ($name, token mode)
+After=network-online.target
+[Service]
+ExecStart=$(command -v cloudflared) tunnel run --token $token
+Restart=always
+User=$USER
+[Install]
+WantedBy=multi-user.target
+EOF
+  sudo systemctl daemon-reload
+  sudo systemctl enable --now "cloudflared-$name"
+}
+
+if [ -n "${CF_TOKEN_OLLAMA:-}" ] && [ -n "${CF_TOKEN_VAULT:-}" ]; then
+  say "2/3  Named Tunnels per Token einrichten (reboot-fest)"
+  install_token_tunnel ollama "$CF_TOKEN_OLLAMA"
+  install_token_tunnel vault "$CF_TOKEN_VAULT"
+  say "3/3  Fertig — Tunnel laufen als systemd-Dienste (Token-Modus)."
+  echo "    Status:  systemctl status cloudflared-ollama cloudflared-vault"
+  exit 0
+fi
+
 if [ -f "$CRED_DIR/$TUNNEL_OLLAMA_ID.json" ] && [ -f "$CRED_DIR/$TUNNEL_VAULT_ID.json" ]; then
   say "2/3  Named Tunnels als Dienste einrichten (reboot-fest)"
   install_named_tunnel ollama "$TUNNEL_OLLAMA_ID" 11434
