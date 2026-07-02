@@ -11,13 +11,14 @@
   --ink: #e9ebef;
   --ink-dim: #9aa1ad;
   --ink-faint: #626974;
-  --accent: #7c8cff;
-  --accent-2: #6366f1;
+  --accent: #82b8e6;
+  --accent-2: #3e97dd;
   --accent-ink: #0b0c10;
-  --bubble-user: #2b2f63;
-  --bubble-user-line: #3a3f7a;
+  --bubble-user: #1e3a52;
+  --bubble-user-line: #2d567a;
   --ok: #3fb564;
   --danger: #e5704b;
+  --brand-pink: #f0569e;
   --radius: 14px;
   --radius-lg: 18px;
   --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
@@ -540,3 +541,8 @@ html, body {
   .layout { grid-template-columns: 1fr; }
   .rail { display: none; }
 }
+
+
+/* Brand logo (inline SVG wordmark; "ai" inherits the text color) */
+.brand-mark svg { height: 44px; width: auto; display: block; }
+.lp-nav .brand-mark svg { height: 38px; }

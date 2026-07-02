@@ -1,0 +1,35 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 216" role="img" aria-label="CMN ai">
+  <defs>
+    <clipPath id="clip-c"><path d="M108 10 L35 10 L10 35 L10 115 L35 140 L108 140 L96 112 L48 112 L38 102 L38 48 L48 38 L96 38 Z"/></clipPath>
+    <clipPath id="clip-m"><path d="M120 140 L120 10 L150 10 L170 62 L190 10 L220 10 L220 140 L192 140 L192 60 L178 98 L162 98 L148 60 L148 140 Z"/></clipPath>
+    <clipPath id="clip-n"><path d="M240 140 L240 10 L268 10 L312 97 L312 10 L340 10 L340 140 L312 140 L268 53 L268 140 Z"/></clipPath>
+  </defs>
+
+  <!-- C — angular, beveled, slanted arm ends -->
+  <g clip-path="url(#clip-c)">
+    <rect x="0" y="0" width="120" height="150" fill="#82b8e6"/>
+    <path d="M0 150 L70 150 L34 92 L0 108 Z" fill="#f0569e"/>
+    <path d="M108 0 L120 0 L96 52 L74 10 Z" fill="#f0569e"/>
+  </g>
+
+  <!-- M — pointed center, faceted -->
+  <g clip-path="url(#clip-m)">
+    <rect x="110" y="0" width="120" height="150" fill="#82b8e6"/>
+    <path d="M150 0 L226 0 L192 74 L158 30 Z" fill="#37536b"/>
+    <path d="M188 150 L230 150 L230 66 L196 96 Z" fill="#f0569e"/>
+  </g>
+
+  <!-- N — faceted diagonal -->
+  <g clip-path="url(#clip-n)">
+    <rect x="230" y="0" width="120" height="150" fill="#f0569e"/>
+    <path d="M230 0 L306 0 L268 84 L230 60 Z" fill="#82b8e6"/>
+    <path d="M312 150 L350 150 L350 40 L300 108 Z" fill="#82b8e6"/>
+  </g>
+
+  <!-- "ai" — adapts to the surface: black in light mode, white in dark (currentColor).
+       The "a" sits centered under the N; the small "i" follows beside it. -->
+  <text x="290" y="196" text-anchor="middle" fill="currentColor"
+        font-family="Inter, system-ui, sans-serif" font-size="52" font-weight="500">a</text>
+  <text x="308" y="196" fill="currentColor"
+        font-family="Inter, system-ui, sans-serif" font-size="52" font-weight="500">i</text>
+</svg>

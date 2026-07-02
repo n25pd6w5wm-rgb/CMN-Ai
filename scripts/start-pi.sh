@@ -1,19 +1,26 @@
 #!/usr/bin/env bash
-# One-command start for the Raspberry Pi after a reboot (or whenever the tunnels died):
-# makes sure Ollama + the vault service run, brings up both Cloudflare quick tunnels,
-# and prints the URLs to paste into Render (OLLAMA_HOST / VAULT_HOST).
+# One-command start for the Raspberry Pi: makes sure Ollama + the vault service run
+# and both Cloudflare tunnels are up.
 #
-# Usage:  bash ~/cmn-ai/scripts/start-pi.sh
-# Stop:   Ctrl-C  (stops the tunnels; Ollama + vault keep running as services)
+#   bash ~/cmn-ai/scripts/start-pi.sh
 #
-# Note: quick tunnels get a NEW URL on every start — after running this, update the
-# two env vars in the Render dashboard. For URLs that never change, create a named
-# Cloudflare tunnel (see docs/DEPLOY.md).
+# Tunnel modes (checked in this order):
+#   1. NAMED tunnels (stable, reboot-safe) — Philipp's tunnels:
+#        Ollama: 0475ed16-5058-4ece-a852-68a06e7127df
+#        Vault:  d61de74f-7292-4774-9358-5c460f28c4a0
+#      Needs the tunnel credentials on this Pi ONCE:
+#        cloudflared tunnel login          # opens browser, pick the domain
+#      (or drop the credentials JSONs into ~/.cloudflared/<id>.json)
+#      The script then installs them as systemd services — they survive reboots,
+#      and the URLs never change again.
+#   2. QUICK tunnels (fallback) — new random URL on every start; the script prints
+#      the values to paste into Render (OLLAMA_HOST / VAULT_HOST).
 
 set -euo pipefail
 
-LOG_OLLAMA="/tmp/cf-ollama.log"
-LOG_VAULT="/tmp/cf-vault.log"
+TUNNEL_OLLAMA_ID="${TUNNEL_OLLAMA_ID:-0475ed16-5058-4ece-a852-68a06e7127df}"
+TUNNEL_VAULT_ID="${TUNNEL_VAULT_ID:-d61de74f-7292-4774-9358-5c460f28c4a0}"
+CRED_DIR="$HOME/.cloudflared"
 
 say() { printf '\n\033[1m%s\033[0m\n' "$*"; }
 
@@ -25,31 +32,69 @@ else
   sudo systemctl start ollama
 fi
 if systemctl list-unit-files --no-legend cmn-ai-vault.service 2>/dev/null | grep -q vault; then
-  if systemctl is-active --quiet cmn-ai-vault; then
-    echo "    vault:  läuft"
-  else
-    echo "    vault:  starte …"
-    sudo systemctl start cmn-ai-vault
-  fi
+  systemctl is-active --quiet cmn-ai-vault || sudo systemctl start cmn-ai-vault
+  echo "    vault:  läuft"
 else
   echo "    vault:  nicht installiert (optional — scripts/install-pi.sh richtet ihn ein)"
 fi
 
-say "2/3  Tunnel starten"
+# ---------- named-tunnel mode ----------
+
+install_named_tunnel() { # $1=name  $2=tunnel-id  $3=local port
+  local name=$1 id=$2 port=$3 cfg="$CRED_DIR/cmn-$name.yml"
+  cat >"$cfg" <<EOF
+tunnel: $id
+credentials-file: $CRED_DIR/$id.json
+ingress:
+  - service: http://localhost:$port
+EOF
+  sudo tee "/etc/systemd/system/cloudflared-$name.service" >/dev/null <<EOF
+[Unit]
+Description=Cloudflare tunnel ($name -> localhost:$port)
+After=network-online.target
+[Service]
+ExecStart=$(command -v cloudflared) tunnel --config $cfg run
+Restart=always
+User=$USER
+[Install]
+WantedBy=multi-user.target
+EOF
+  sudo systemctl daemon-reload
+  sudo systemctl enable --now "cloudflared-$name"
+}
+
+if [ -f "$CRED_DIR/$TUNNEL_OLLAMA_ID.json" ] && [ -f "$CRED_DIR/$TUNNEL_VAULT_ID.json" ]; then
+  say "2/3  Named Tunnels als Dienste einrichten (reboot-fest)"
+  install_named_tunnel ollama "$TUNNEL_OLLAMA_ID" 11434
+  install_named_tunnel vault "$TUNNEL_VAULT_ID" 11435
+  say "3/3  Fertig — Tunnel laufen als systemd-Dienste."
+  echo "    Status:  systemctl status cloudflared-ollama cloudflared-vault"
+  echo ""
+  echo "    Stabile URLs brauchen einmalig DNS-Routen auf deiner Cloudflare-Domain:"
+  echo "      cloudflared tunnel route dns $TUNNEL_OLLAMA_ID ollama.<deine-domain>"
+  echo "      cloudflared tunnel route dns $TUNNEL_VAULT_ID  vault.<deine-domain>"
+  echo "    Danach in Render eintragen:"
+  echo "      OLLAMA_HOST = https://ollama.<deine-domain>"
+  echo "      VAULT_HOST  = https://vault.<deine-domain>"
+  exit 0
+fi
+
+# ---------- quick-tunnel fallback ----------
+
+say "2/3  Keine Tunnel-Credentials in $CRED_DIR gefunden → Quick Tunnels (URLs wechseln!)"
+echo "    Für stabile URLs einmalig:  cloudflared tunnel login   und Skript neu starten."
+
+LOG_OLLAMA="/tmp/cf-ollama.log"; LOG_VAULT="/tmp/cf-vault.log"
 : >"$LOG_OLLAMA"; : >"$LOG_VAULT"
 cloudflared tunnel --url http://localhost:11434 >"$LOG_OLLAMA" 2>&1 &
 PID_OLLAMA=$!
 cloudflared tunnel --url http://localhost:11435 >"$LOG_VAULT" 2>&1 &
 PID_VAULT=$!
 
-cleanup() {
-  echo ""
-  echo "Stoppe Tunnel …"
-  kill "$PID_OLLAMA" "$PID_VAULT" 2>/dev/null || true
-}
+cleanup() { echo ""; echo "Stoppe Tunnel …"; kill "$PID_OLLAMA" "$PID_VAULT" 2>/dev/null || true; }
 trap cleanup EXIT INT TERM
 
-url_from_log() { # waits until the quick-tunnel URL shows up in the log
+url_from_log() {
   local log=$1 url=""
   for _ in $(seq 1 60); do
     url=$(grep -oE 'https://[a-z0-9-]+\.trycloudflare\.com' "$log" | head -1 || true)
