@@ -231,7 +231,8 @@ def build_app(state: AppState) -> FastAPI:
         if user is None:
             if path.startswith("/api/"):
                 return JSONResponse({"detail": "unauthenticated"}, status_code=401)
-            return RedirectResponse("/login", status_code=302)
+            # Visitors hit the marketing page first; the login is one click away.
+            return RedirectResponse("/welcome" if path == "/" else "/login", status_code=302)
         request.state.user = user
         return await call_next(request)
 

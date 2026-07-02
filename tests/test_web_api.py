@@ -341,11 +341,18 @@ def _auth_client(tmp_path: Path) -> tuple[TestClient, FakeAuth]:
     return base, fake
 
 
-def test_unauthenticated_root_redirects_to_login(tmp_path: Path) -> None:
+def test_unauthenticated_root_shows_landing_not_login(tmp_path: Path) -> None:
+    # The main domain is the storefront: visitors land on the marketing page,
+    # not on a bare login form. The login stays one click away.
     client, _ = _auth_client(tmp_path)
     r = client.get("/", follow_redirects=False)
     assert r.status_code == 302
-    assert r.headers["location"] == "/login"
+    assert r.headers["location"] == "/welcome"
+
+
+def test_unauthenticated_api_still_401_not_redirect(tmp_path: Path) -> None:
+    client, _ = _auth_client(tmp_path)
+    assert client.get("/api/budget").status_code == 401
 
 
 def test_unauthenticated_api_is_401(tmp_path: Path) -> None:
