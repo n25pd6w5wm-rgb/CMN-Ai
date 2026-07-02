@@ -158,21 +158,27 @@ def bootstrap_secrets(
 
     url = env.get("SUPABASE_URL")
     service_key = env.get("SUPABASE_KEY")
-    if url and service_key:
-        if _looks_like_publishable_key(service_key):
-            print(
-                "[cmn-ai] SUPABASE_KEY looks like a publishable (public) key "
-                "(sb_publishable_…). The api_keys table is RLS-protected and needs the "
-                "service-role secret key — model keys won't load; running local-only."
-            )
-        else:
-            try:
-                keys = load_supabase_keys(url=url, service_key=service_key)
-                apply_to_env(keys, env=env)
-            except Exception as exc:
-                print(f"[cmn-ai] Supabase key load failed ({exc}); continuing local-only.")
+    if not url or not service_key:
+        print("[cmn-ai] SUPABASE_URL or SUPABASE_KEY not set; running local-only.")
+    elif _looks_like_publishable_key(service_key):
+        print(
+            "[cmn-ai] SUPABASE_KEY looks like a publishable (public) key "
+            "(sb_publishable_…). The api_keys table is RLS-protected and needs the "
+            "service-role secret key — model keys won't load; running local-only."
+        )
+    else:
+        try:
+            keys = load_supabase_keys(url=url, service_key=service_key)
+            apply_to_env(keys, env=env)
+            print(f"[cmn-ai] Loaded {len(keys)} API key(s) from Supabase: {', '.join(keys)}")
+        except Exception as exc:
+            print(f"[cmn-ai] Supabase key load failed ({exc}); continuing local-only.")
 
     # Auto-enable any agent whose API key is now available.
-    for cfg in settings.agents.values():
+    enabled = []
+    for name, cfg in settings.agents.items():
         if cfg.api_key_env and env.get(cfg.api_key_env):
             cfg.enabled = True
+            enabled.append(name)
+    if enabled:
+        print(f"[cmn-ai] Enabled agents: {', '.join(enabled)}")
