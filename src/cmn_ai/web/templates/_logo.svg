@@ -1,4 +1,4 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 216" role="img" aria-label="CMN ai">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 224" role="img" aria-label="CMN ai">
   <defs>
     <clipPath id="clip-c"><path d="M108 10 L35 10 L10 35 L10 115 L35 140 L108 140 L96 112 L48 112 L38 102 L38 48 L48 38 L96 38 Z"/></clipPath>
     <clipPath id="clip-m"><path d="M120 140 L120 10 L150 10 L170 62 L190 10 L220 10 L220 140 L192 140 L192 60 L178 98 L162 98 L148 60 L148 140 Z"/></clipPath>
@@ -28,8 +28,8 @@
 
   <!-- "ai" — adapts to the surface: black in light mode, white in dark (currentColor).
        The "a" sits centered under the N; the small "i" follows beside it. -->
-  <text x="290" y="196" text-anchor="middle" fill="currentColor"
-        font-family="Inter, system-ui, sans-serif" font-size="52" font-weight="500">a</text>
-  <text x="308" y="196" fill="currentColor"
-        font-family="Inter, system-ui, sans-serif" font-size="52" font-weight="500">i</text>
+  <text x="290" y="206" text-anchor="middle" fill="currentColor"
+        font-family="Inter, system-ui, sans-serif" font-size="68" font-weight="500">a</text>
+  <text x="312" y="206" fill="currentColor"
+        font-family="Inter, system-ui, sans-serif" font-size="68" font-weight="500">i</text>
 </svg>

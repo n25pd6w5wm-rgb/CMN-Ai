@@ -3,9 +3,14 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>cmn·ai — the conductor</title>
+    <title>CMN ai — Alle KIs. Ein Dirigent. Dein Budget.</title>
+    <meta
+      name="description"
+      content="CMN ai schickt jede Frage an das beste KI-Modell — lokal &amp; gratis wenn möglich, bezahlte Experten nur wenn nötig. Jede Antwort zeigt, was sie gekostet hat."
+    />
     <link rel="icon" href="/static/icons/icon-192.png" />
     <meta name="theme-color" content="#0c0d10" />
+    <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
@@ -13,45 +18,97 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/static/chat.css?v={{ css_v }}" />
+    <script>try{var t=localStorage.getItem("cmn-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
   </head>
   <body>
-    <!-- ROUGH LAYOUT / SCAFFOLD — polish via the design prompt in the vault. -->
     <div class="lp">
       <header class="lp-nav">
         <div class="brand-mark" aria-label="CMN ai">{% include "_logo.svg" %}</div>
-        <a class="lp-nav-cta" href="/">Zur App →</a>
+        <nav class="lp-nav-links">
+          <a href="#install">App holen</a>
+          <a class="lp-nav-cta" href="/login">Anmelden →</a>
+        </nav>
       </header>
 
       <section class="lp-hero">
         <p class="lp-eyebrow">the conductor</p>
-        <h1>Eine KI-Oberfläche.<br />Der richtige Experte für jede Aufgabe.</h1>
+        <h1>Alle KIs. Ein Dirigent.<br />Dein Budget.</h1>
         <p class="lp-sub">
-          Ein Dirigent leitet jede Anfrage an die beste KI weiter — lokal &amp; gratis, wo es
-          geht, bezahlte Experten nur, wenn es sich lohnt. Alles unter einem harten Budget.
+          CMN ai schickt jede Frage an das beste Modell — lokal &amp; gratis, wenn es geht,
+          bezahlte Experten nur, wenn es sich lohnt. Und unter jeder Antwort steht,
+          wer geantwortet hat und was es gekostet hat.
         </p>
         <div class="lp-actions">
-          <a class="lp-btn" href="/">App öffnen</a>
-          <a class="lp-btn ghost" href="#install">Als App installieren</a>
+          <a class="lp-btn" href="/login">Kostenlos starten</a>
+          <button class="lp-btn ghost" id="install-btn" type="button">⤓ App installieren</button>
         </div>
       </section>
 
       <section class="lp-features">
-        <div class="lp-card"><h3>Kostengesteuert</h3><p>Hartes Wochenbudget, getrennte Töpfe. Nie böse Überraschungen.</p></div>
-        <div class="lp-card"><h3>Lokal zuerst</h3><p>Ein gratis lokales Modell trägt die Masse. Cloud nur gezielt.</p></div>
-        <div class="lp-card"><h3>Transparent</h3><p>Jede Antwort zeigt, wer sie beantwortet hat und was sie kostet.</p></div>
+        <div class="lp-card">
+          <h3>Hartes Budget</h3>
+          <p>Du setzt den Monatsdeckel, CMN ai hält ihn. Getrennte Töpfe für Chat und
+            Coding — ist einer leer, wird lokal geantwortet oder ehrlich blockiert.</p>
+        </div>
+        <div class="lp-card">
+          <h3>Lokal zuerst</h3>
+          <p>Ein gratis Modell auf eigener Hardware trägt die Masse. Die Cloud wird
+            engagiert, nicht abonniert.</p>
+        </div>
+        <div class="lp-card">
+          <h3>Volle Transparenz</h3>
+          <p>Jede Antwort trägt ihren Preis: welche KI, welches Modell, wie viele Cent.
+            Keine Blackbox.</p>
+        </div>
+        <div class="lp-card">
+          <h3>Dateien rein &amp; raus</h3>
+          <p>PDFs und Texte hochladen, Antworten als PDF oder PowerPoint speichern —
+            alles direkt im Chat.</p>
+        </div>
       </section>
 
       <section class="lp-install" id="install">
-        <h2>Als Web-App installieren</h2>
-        <p>Öffne die App und wähle im Browser „Installieren" (Chrome) bzw. „Zum Dock
-          hinzufügen" (Safari). Dann läuft cmn·ai wie eine native App.</p>
-        <a class="lp-btn" href="/">Jetzt starten →</a>
+        <h2>Die App auf dein Gerät</h2>
+        <p>
+          CMN ai ist eine Web-App — nichts aus dem App Store, keine Updates von Hand.
+          Einmal „installieren" und sie liegt wie eine native App auf Homescreen oder Dock.
+        </p>
+        <ol class="lp-steps">
+          <li><strong>iPhone/iPad:</strong> In Safari öffnen → Teilen-Symbol → „Zum Home-Bildschirm".</li>
+          <li><strong>Android:</strong> In Chrome öffnen → Menü ⋮ → „App installieren".</li>
+          <li><strong>Mac/PC:</strong> In Chrome/Edge auf das Install-Symbol in der Adressleiste klicken —
+            oder unten auf den Button.</li>
+        </ol>
+        <div class="lp-actions">
+          <button class="lp-btn" id="install-btn2" type="button">⤓ Jetzt installieren</button>
+          <a class="lp-btn ghost" href="/login">Erst mal im Browser testen</a>
+        </div>
       </section>
 
       <footer class="lp-foot">
-        cmn·ai · cost-governed multi-AI · local-first
+        CMN ai · cost-governed multi-AI · local-first
         · <a href="/impressum">Impressum</a> · <a href="/datenschutz">Datenschutz</a>
       </footer>
     </div>
+
+    <script>
+      // PWA install: use the browser prompt when available, else jump to the how-to.
+      let deferredPrompt = null;
+      window.addEventListener("beforeinstallprompt", (e) => {
+        e.preventDefault();
+        deferredPrompt = e;
+      });
+      const install = async () => {
+        if (deferredPrompt) {
+          deferredPrompt.prompt();
+          await deferredPrompt.userChoice;
+          deferredPrompt = null;
+        } else {
+          document.getElementById("install").scrollIntoView({ behavior: "smooth" });
+        }
+      };
+      document.getElementById("install-btn").addEventListener("click", install);
+      document.getElementById("install-btn2").addEventListener("click", install);
+    </script>
   </body>
 </html>

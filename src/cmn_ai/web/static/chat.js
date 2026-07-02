@@ -533,6 +533,21 @@ $("#settings-overlay").addEventListener("click", (e) => {
 });
 $("#set-budget-save").addEventListener("click", saveBudget);
 $("#logout-btn").addEventListener("click", logout);
+(() => {
+  const sel = $("#set-theme");
+  try {
+    sel.value = localStorage.getItem("cmn-theme") || "";
+  } catch (e) {}
+  sel.addEventListener("change", () => {
+    const v = sel.value;
+    try {
+      if (v) localStorage.setItem("cmn-theme", v);
+      else localStorage.removeItem("cmn-theme");
+    } catch (e) {}
+    if (v) document.documentElement.dataset.theme = v;
+    else delete document.documentElement.dataset.theme;
+  });
+})();
 $("#vault-upload-btn").addEventListener("click", uploadVault);
 $("#bench-run").addEventListener("click", async () => {
   const btn = $("#bench-run");

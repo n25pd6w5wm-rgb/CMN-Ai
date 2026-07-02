@@ -18,6 +18,7 @@
       rel="stylesheet"
     />
     <link rel="stylesheet" href="/static/chat.css?v={{ css_v }}" />
+    <script>try{var t=localStorage.getItem("cmn-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
   </head>
   <body>
     <div class="layout">
@@ -165,6 +166,17 @@
           <section class="set-section">
             <h3>Models</h3>
             <ul class="set-models" id="set-models"></ul>
+          </section>
+          <section class="set-section">
+            <h3>Darstellung</h3>
+            <div class="set-row">
+              <span>Theme</span>
+              <select id="set-theme" class="model-select">
+                <option value="">System</option>
+                <option value="dark">Dunkel</option>
+                <option value="light">Hell</option>
+              </select>
+            </div>
           </section>
           <section class="set-section">
             <h3>Speed-Test</h3>

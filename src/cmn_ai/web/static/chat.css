@@ -592,3 +592,62 @@ html, body {
 }
 .bench-row:first-child { border-color: var(--accent); color: var(--ink); }
 .bench-fail { color: var(--ink-faint); }
+
+
+/* ---------- Light mode (Design 2.0) ----------
+   Explicit choice via data-theme, else the OS decides. The logo's "ai" follows
+   automatically (currentColor). */
+:root[data-theme="light"] {
+  --bg: #f6f7f9;
+  --bg-rail: #eef0f4;
+  --panel: #ffffff;
+  --panel-2: #f1f3f6;
+  --line: #e2e5ea;
+  --line-soft: #eaedf1;
+  --ink: #1a1c21;
+  --ink-dim: #565e6a;
+  --ink-faint: #8a919c;
+  --accent: #2e8ad6;
+  --accent-2: #2278c2;
+  --accent-ink: #ffffff;
+  --bubble-user: #ddeafc;
+  --bubble-user-line: #bcd6f2;
+  --ok: #26884a;
+  --danger: #c9552f;
+  --brand-pink: #d84389;
+  --shadow: 0 1px 2px rgba(20, 24, 33, 0.08), 0 8px 24px rgba(20, 24, 33, 0.07);
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+  --bg: #f6f7f9;
+  --bg-rail: #eef0f4;
+  --panel: #ffffff;
+  --panel-2: #f1f3f6;
+  --line: #e2e5ea;
+  --line-soft: #eaedf1;
+  --ink: #1a1c21;
+  --ink-dim: #565e6a;
+  --ink-faint: #8a919c;
+  --accent: #2e8ad6;
+  --accent-2: #2278c2;
+  --accent-ink: #ffffff;
+  --bubble-user: #ddeafc;
+  --bubble-user-line: #bcd6f2;
+  --ok: #26884a;
+  --danger: #c9552f;
+  --brand-pink: #d84389;
+  --shadow: 0 1px 2px rgba(20, 24, 33, 0.08), 0 8px 24px rgba(20, 24, 33, 0.07);
+  }
+}
+
+
+/* Landing 2.0 additions */
+.lp-nav-links { display: flex; align-items: center; gap: 20px; }
+.lp-nav-links a { color: var(--ink-dim); text-decoration: none; font-size: 0.9rem; }
+.lp-nav-links a:hover { color: var(--ink); }
+.lp-steps { margin: 16px auto 24px; padding: 0 0 0 20px; max-width: 560px; text-align: left; }
+.lp-steps li { color: var(--ink-dim); font-size: 0.95rem; margin-bottom: 10px; line-height: 1.6; }
+.lp-features { grid-template-columns: repeat(4, 1fr); }
+@media (max-width: 900px) { .lp-features { grid-template-columns: repeat(2, 1fr); } }
+@media (max-width: 560px) { .lp-features { grid-template-columns: 1fr; } }
