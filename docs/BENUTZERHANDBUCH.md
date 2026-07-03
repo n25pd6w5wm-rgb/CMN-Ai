@@ -240,15 +240,24 @@ Beantwortung umformulieren (klarer/präziser). Sicher gebaut: triviale Prompts w
 
 - **Konto & gespeicherte Chats:** Registrieren geht sofort (keine Bestätigungs-Mail).
   „Passwort vergessen?" auf der Anmeldeseite schickt einen Reset-Link.
-- **Dateien:** Über die Büroklammer im Eingabefeld PDFs, Text- und Code-Dateien anhängen
-  (max. 8 Stück, 15 MB) — die KI liest den Inhalt. Jede Antwort lässt sich unten als
-  **md / pdf / pptx** speichern (PowerPoint: Überschriften werden Folien).
+- **Jede Datei rein:** Dateien einfach ins Chat-Fenster **ziehen** (Drag & Drop),
+  Screenshots direkt **einfügen** (Cmd+V) oder über die Büroklammer wählen — PDF,
+  Word (docx), Excel (xlsx), PowerPoint (pptx), Bilder, Text und Code (max. 8 Stück,
+  15 MB). Die KI liest den Inhalt; Bilder gehen an ein Vision-Modell.
+- **Dateien raus:** Sag einfach „… und gib es mir als PDF" (oder docx/pptx) — die KI
+  erstellt das komplette Dokument und unter der Antwort erscheint eine
+  **Download-Karte**. Zusätzlich lässt sich jede Antwort unten manuell als
+  **md / pdf / docx / pptx** speichern (PDF mit Tabellen, Codeblöcken und vollem
+  Unicode; PowerPoint: Überschriften werden Folien).
 - **Schöne Antworten:** Codeblöcke (mit Kopieren-Button), Listen und Tabellen werden
-  formatiert dargestellt.
+  formatiert dargestellt; Antworten sind jetzt ausführlich statt einzeilig.
 - **Hell/Dunkel:** Einstellungen → Darstellung (System/Dunkel/Hell).
 - **Speed-Test:** Einstellungen → „Speed-Test starten" misst, welches Modell gerade am
   schnellsten antwortet (bezahlte Modelle kosten dabei einen Mini-Betrag).
-- **Ausfallsicher:** Ist das lokale Pi-Modell nicht erreichbar, springt automatisch der
-  günstigste bezahlte Agent ein — der Chip unter der Antwort zeigt es ehrlich an.
+- **Kluges Routing:** Einfache Fragen beantwortet das günstigste Modell, komplexe
+  Fragen und Dokument-Analysen gehen automatisch an ein starkes Modell (Claude/GPT),
+  Recherche an Perplexity, Bilder an Gemini. Ist das lokale Pi-Modell nicht
+  erreichbar, wird es per Health-Check übersprungen — ohne Fehlversuch und ohne
+  irreführendes „Fallback"-Label.
 - **Landing Page:** Die Hauptdomain zeigt Besuchern jetzt die Produktseite mit
   „App downloaden" (PWA) und „oder im Browser öffnen".
