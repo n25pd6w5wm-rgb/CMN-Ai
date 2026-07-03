@@ -234,3 +234,21 @@ Beantwortung umformulieren (klarer/präziser). Sicher gebaut: triviale Prompts w
 | „router strategy=mlx but no adapter" im Log | Normal ohne trainiertes Modell — läuft mit Regel-Router weiter. Adapter mit `cmn-ai train` erzeugen oder `strategy: rule` setzen. |
 | Budget blockt eine Anfrage | Wochenlimit des Topfes erreicht → in der UI Monatsbudget erhöhen oder bis nächste Woche warten. |
 | Coding-Agent ändert nichts an Dateien | `workspace_root` gesetzt? Für Schreiben zusätzlich `workspace_writable: true`. |
+
+
+## Neu seit Juli 2026
+
+- **Konto & gespeicherte Chats:** Registrieren geht sofort (keine Bestätigungs-Mail).
+  „Passwort vergessen?" auf der Anmeldeseite schickt einen Reset-Link.
+- **Dateien:** Über die Büroklammer im Eingabefeld PDFs, Text- und Code-Dateien anhängen
+  (max. 8 Stück, 15 MB) — die KI liest den Inhalt. Jede Antwort lässt sich unten als
+  **md / pdf / pptx** speichern (PowerPoint: Überschriften werden Folien).
+- **Schöne Antworten:** Codeblöcke (mit Kopieren-Button), Listen und Tabellen werden
+  formatiert dargestellt.
+- **Hell/Dunkel:** Einstellungen → Darstellung (System/Dunkel/Hell).
+- **Speed-Test:** Einstellungen → „Speed-Test starten" misst, welches Modell gerade am
+  schnellsten antwortet (bezahlte Modelle kosten dabei einen Mini-Betrag).
+- **Ausfallsicher:** Ist das lokale Pi-Modell nicht erreichbar, springt automatisch der
+  günstigste bezahlte Agent ein — der Chip unter der Antwort zeigt es ehrlich an.
+- **Landing Page:** Die Hauptdomain zeigt Besuchern jetzt die Produktseite mit
+  „App downloaden" (PWA) und „oder im Browser öffnen".

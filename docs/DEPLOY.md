@@ -129,3 +129,18 @@ Dann startet cmn-ai wie eine eigenständige App im eigenen Fenster.
 
 Ohne Supabase-Env läuft die App weiter im **offenen Einzelnutzer-Modus** (keine Login-Wand) —
 ideal für lokale Entwicklung auf dem Mac.
+
+
+## Pi-Tunnel: empfohlener Weg (Stand Juli 2026)
+
+`scripts/start-pi.sh` wählt automatisch den besten Modus:
+
+1. **Tailscale Funnel** (empfohlen, keine Domain nötig): Ist der Pi im Tailnet,
+   bekommt Ollama `https://<pi>.<tailnet>.ts.net` (Port 443) und der Vault `:8443` —
+   dauerhafte URLs, einmal in Render eintragen. Voraussetzung auf dem Pi:
+   `curl -fsSL https://tailscale.com/install.sh | sh && sudo tailscale up`.
+2. **Cloudflare Named Tunnel** (nur mit eigener Domain im Cloudflare-Konto):
+   Tokens nach `~/.config/cmn-ai/cf-tunnels.env` (CF_TOKEN_OLLAMA / CF_TOKEN_VAULT)
+   oder einmal `cloudflared tunnel login`.
+3. **Quick Tunnels** (Fallback): wechselnde trycloudflare-URLs, nach jedem Start neu
+   in Render eintragen.

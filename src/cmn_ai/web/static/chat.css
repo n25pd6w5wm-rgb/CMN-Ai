@@ -671,3 +671,13 @@ html, body {
 .bubble.md table { border-collapse: collapse; margin: 10px 0; font-size: 0.9em; }
 .bubble.md th, .bubble.md td { border: 1px solid var(--line); padding: 5px 10px; }
 .bubble.md a { color: var(--accent); }
+
+.bubble.md pre { position: relative; }
+.copy-btn {
+  position: absolute; top: 6px; right: 6px;
+  background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px;
+  color: var(--ink-faint); font: 500 0.68rem var(--mono); padding: 2px 8px;
+  cursor: pointer; opacity: 0; transition: opacity 0.15s ease-out;
+}
+.bubble.md pre:hover .copy-btn { opacity: 1; }
+.copy-btn:hover { color: var(--ink); }

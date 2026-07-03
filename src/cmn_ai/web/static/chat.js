@@ -26,6 +26,20 @@ function renderMarkdown(bubble, text) {
   if (window.marked && window.DOMPurify) {
     bubble.classList.add("md");
     bubble.innerHTML = DOMPurify.sanitize(marked.parse(text, { breaks: true }));
+    for (const pre of bubble.querySelectorAll("pre")) {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.className = "copy-btn";
+      btn.textContent = "kopieren";
+      btn.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(pre.querySelector("code")?.innerText ?? pre.innerText);
+          btn.textContent = "kopiert ✓";
+          setTimeout(() => (btn.textContent = "kopieren"), 1500);
+        } catch (e) {}
+      });
+      pre.appendChild(btn);
+    }
   } else {
     bubble.textContent = text;
   }
