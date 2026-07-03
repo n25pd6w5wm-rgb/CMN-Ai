@@ -22,6 +22,15 @@ function clearWelcome() {
 }
 
 // ---------- message rendering ----------
+function renderMarkdown(bubble, text) {
+  if (window.marked && window.DOMPurify) {
+    bubble.classList.add("md");
+    bubble.innerHTML = DOMPurify.sanitize(marked.parse(text, { breaks: true }));
+  } else {
+    bubble.textContent = text;
+  }
+}
+
 function addUserMessage(text) {
   clearWelcome();
   const wrap = document.createElement("div");
@@ -87,7 +96,7 @@ function addStoredAssistant(msg) {
   }
   const bubble = document.createElement("div");
   bubble.className = "bubble";
-  bubble.textContent = msg.content;
+  renderMarkdown(bubble, msg.content);
   wrap.appendChild(bubble);
   transcript.appendChild(wrap);
 }
@@ -216,7 +225,8 @@ function handleEvent(block, ctx) {
   } else if (event === "route") {
     renderChip(ctx.chip, payload);
   } else if (event === "delta") {
-    ctx.bubble.textContent += payload.text;
+    ctx.raw = (ctx.raw || "") + payload.text;
+    ctx.bubble.textContent = ctx.raw;
     scrollDown();
   } else if (event === "blocked") {
     renderBlocked(ctx.wrap, ctx.bubble, payload);
@@ -226,7 +236,8 @@ function handleEvent(block, ctx) {
     ctx.bubble.textContent = payload.message || "Etwas ist schiefgelaufen.";
   } else if (event === "done" && !payload.blocked) {
     finalizeChip(ctx.chip, payload);
-    addDownloadButton(ctx.wrap, ctx.bubble);
+    if (ctx.raw) renderMarkdown(ctx.bubble, ctx.raw);
+    addDownloadButton(ctx.wrap, ctx.bubble, ctx.raw);
   }
 }
 
@@ -255,8 +266,8 @@ async function exportAnswer(text, format, btn) {
   }
 }
 
-function addDownloadButton(wrap, bubble) {
-  const text = bubble.textContent.trim();
+function addDownloadButton(wrap, bubble, raw) {
+  const text = (raw || bubble.textContent).trim();
   if (!text) return;
   const row = document.createElement("div");
   row.className = "dl-row";
@@ -269,11 +280,9 @@ function addDownloadButton(wrap, bubble) {
     btn.addEventListener("click", () => handler(btn));
     row.appendChild(btn);
   };
-  mk("\u2913 md", () =>
-    downloadBlob(new Blob([bubble.textContent], { type: "text/markdown" }), "cmn-ai-antwort.md")
-  );
-  mk("\u2913 pdf", (btn) => exportAnswer(bubble.textContent, "pdf", btn));
-  mk("\u2913 pptx", (btn) => exportAnswer(bubble.textContent, "pptx", btn));
+  mk("\u2913 md", () => downloadBlob(new Blob([text], { type: "text/markdown" }), "cmn-ai-antwort.md"));
+  mk("\u2913 pdf", (btn) => exportAnswer(text, "pdf", btn));
+  mk("\u2913 pptx", (btn) => exportAnswer(text, "pptx", btn));
   wrap.appendChild(row);
 }
 
@@ -322,9 +331,10 @@ async function openConversation(id) {
 function newChat() {
   currentConversationId = null;
   transcript.innerHTML =
-    `<div class="welcome"><h1>Ask anything.</h1><p>A free local model carries the load. ` +
-    `Research, hard code and multimodal tasks are routed to the right paid expert — only ` +
-    `when the budget allows. Every answer shows who handled it and what it cost.</p></div>`;
+    `<div class="welcome"><h1>Frag irgendetwas.</h1><p>Ein gratis lokales Modell trägt ` +
+    `die Masse. Recherche, harter Code und Spezialaufgaben gehen an den passenden ` +
+    `bezahlten Experten — nur wenn das Budget es erlaubt. Jede Antwort zeigt, wer sie ` +
+    `beantwortet hat und was sie gekostet hat.</p></div>`;
   loadConversations();
   promptEl.focus();
 }
