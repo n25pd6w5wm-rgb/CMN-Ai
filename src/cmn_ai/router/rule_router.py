@@ -251,11 +251,17 @@ class RuleRouter:
         )
 
     def _blocked(self, c: Classification, agent: Agent | None, est: float) -> RouteDecision:
+        reason = (
+            "weekly budget for this category is exhausted"
+            if agent is not None
+            else "no agent available for this task — is the local model reachable "
+            "or an API key configured?"
+        )
         return RouteDecision(
             classification=c,
             agent=agent.name if agent else "",
             model=agent.model if agent else "",
-            reason="weekly budget for this category is exhausted",
+            reason=reason,
             estimated_eur=est,
             blocked=True,
         )

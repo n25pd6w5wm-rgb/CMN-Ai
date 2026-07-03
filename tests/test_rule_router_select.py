@@ -290,3 +290,24 @@ def test_all_unaffordable_blocks_on_top_preference(tmp_path: Path) -> None:
     )
     assert decision.blocked is True
     assert decision.agent == "anthropic"  # the honest top preference, not the cheapest
+
+
+def test_no_agent_at_all_blocks_with_honest_reason(tmp_path: Path) -> None:
+    router = RuleRouter()
+    decision = router.select(
+        Task(prompt="hi"),
+        _c(Capability.CHAT, Complexity.LOW, Bucket.GENERAL),
+        {
+            "local": FakeAgent(
+                "local",
+                capabilities={Capability.CHAT},
+                cost=FREE,
+                bucket=Bucket.GENERAL,
+                active=False,
+            )
+        },
+        _governor(tmp_path),
+    )
+    assert decision.blocked is True
+    assert "budget" not in decision.reason
+    assert "no agent available" in decision.reason
