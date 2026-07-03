@@ -97,11 +97,11 @@ function renderBlocked(wrap, bubble, info) {
   const box = document.createElement("div");
   box.className = "blocked";
   box.innerHTML =
-    `<h3>Budget reached</h3><p>${info.reason}. The “${info.bucket}” bucket is paused ` +
-    `for this rolling week.</p>`;
+    `<h3>Budget erreicht</h3><p>${info.reason}. Der Topf „${info.bucket}“ pausiert ` +
+    `für diese rollierende Woche.</p>`;
   const btn = document.createElement("button");
   btn.className = "ghost-btn";
-  btn.textContent = "raise budget";
+  btn.textContent = "Budget erhöhen";
   btn.addEventListener("click", raiseBudget);
   box.appendChild(btn);
   wrap.appendChild(box);
@@ -173,7 +173,7 @@ async function sendMessage(text) {
     });
   } catch (e) {
     bubble.classList.remove("cursor");
-    bubble.textContent = "Network error — is the server running?";
+    bubble.textContent = "Netzwerkfehler — läuft der Server?";
     return;
   }
 
@@ -223,7 +223,7 @@ function handleEvent(block, ctx) {
   } else if (event === "error") {
     ctx.bubble.classList.remove("cursor");
     ctx.bubble.classList.add("msg-error");
-    ctx.bubble.textContent = payload.message || "Something went wrong.";
+    ctx.bubble.textContent = payload.message || "Etwas ist schiefgelaufen.";
   } else if (event === "done" && !payload.blocked) {
     finalizeChip(ctx.chip, payload);
     addDownloadButton(ctx.wrap, ctx.bubble);
@@ -283,7 +283,7 @@ async function loadConversations() {
   const host = $("#chats");
   host.innerHTML = "";
   if (!data.conversations.length) {
-    host.innerHTML = `<li class="chats-empty">No conversations yet.</li>`;
+    host.innerHTML = `<li class="chats-empty">Noch keine Chats.</li>`;
     return;
   }
   for (const c of data.conversations) {
@@ -291,7 +291,7 @@ async function loadConversations() {
     li.className = "chat-item" + (c.id === currentConversationId ? " active" : "");
     const title = document.createElement("button");
     title.className = "chat-title";
-    title.textContent = c.title;
+    title.textContent = c.title === "New chat" ? "Neuer Chat" : c.title;
     title.title = c.title;
     title.addEventListener("click", () => openConversation(c.id));
     const del = document.createElement("button");

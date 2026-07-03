@@ -24,21 +24,21 @@
         </div>
 
         <div class="auth-tabs">
-          <button class="auth-tab active" data-mode="login" type="button">Log in</button>
-          <button class="auth-tab" data-mode="signup" type="button">Sign up</button>
+          <button class="auth-tab active" data-mode="login" type="button">Anmelden</button>
+          <button class="auth-tab" data-mode="signup" type="button">Konto erstellen</button>
         </div>
 
         <form id="auth-form">
-          <input id="email" type="email" placeholder="Email" autocomplete="email" required />
+          <input id="email" type="email" placeholder="E-Mail" autocomplete="email" required />
           <input
             id="password"
             type="password"
-            placeholder="Password"
+            placeholder="Passwort"
             autocomplete="current-password"
             minlength="6"
             required
           />
-          <button type="submit" id="auth-submit">Log in</button>
+          <button type="submit" id="auth-submit">Anmelden</button>
           <p class="auth-msg" id="auth-msg" role="status"></p>
           <button type="button" class="auth-link" id="forgot">Passwort vergessen?</button>
         </form>
@@ -75,7 +75,7 @@
           mode = tab.dataset.mode;
           document.querySelectorAll(".auth-tab").forEach((t) => t.classList.remove("active"));
           tab.classList.add("active");
-          submit.textContent = mode === "login" ? "Log in" : "Create account";
+          submit.textContent = mode === "login" ? "Anmelden" : "Konto erstellen";
           $("#password").autocomplete = mode === "login" ? "current-password" : "new-password";
           msg.textContent = "";
           msg.className = "auth-msg";
