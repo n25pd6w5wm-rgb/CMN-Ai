@@ -34,6 +34,20 @@ class Agent(Protocol):
         ...
 
 
+@runtime_checkable
+class HealthCheckedAgent(Protocol):
+    """Agents whose ``active`` state must be discovered by probing a backend.
+
+    Cloud adapters derive ``active`` from the presence of an API key; the local
+    Ollama agent instead exposes ``refresh_health()`` so the orchestrator can skip
+    an unreachable Pi up front rather than failing into it on every request.
+    """
+
+    async def refresh_health(self) -> None:
+        """Re-probe the backend (implementations should cache with a short TTL)."""
+        ...
+
+
 def build_messages(task: Task) -> list[dict[str, str]]:
     """Turn a Task (history + prompt) into OpenAI/Ollama-style chat messages.
 

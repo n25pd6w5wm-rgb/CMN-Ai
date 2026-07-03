@@ -67,8 +67,69 @@ async def test_run_sends_history_and_system() -> None:
     assert len(messages) == 4
 
 
-def test_local_agent_is_active_and_capable() -> None:
+def test_local_agent_is_capable_but_starts_inactive() -> None:
+    # Pessimistic start: an unreachable Pi must never receive the first request.
     agent = OllamaAgent(host="http://localhost:11434", model="gemma4:latest")
-    assert agent.active is True
+    assert agent.active is False
     assert Capability.CHAT in agent.capabilities
     assert Capability.CODE in agent.capabilities
+
+
+# ---------- health check: active reflects actual Ollama reachability ----------
+
+
+@respx.mock
+async def test_refresh_health_activates_on_ok() -> None:
+    respx.get("http://localhost:11434/api/tags").mock(return_value=httpx.Response(200, json={}))
+    agent = OllamaAgent(host="http://localhost:11434", model="gemma4:latest")
+
+    await agent.refresh_health()
+
+    assert agent.active is True
+
+
+@respx.mock
+async def test_refresh_health_deactivates_on_connect_error() -> None:
+    respx.get("http://localhost:11434/api/tags").mock(side_effect=httpx.ConnectError("down"))
+    agent = OllamaAgent(host="http://localhost:11434", model="gemma4:latest")
+
+    await agent.refresh_health()
+
+    assert agent.active is False
+
+
+@respx.mock
+async def test_health_result_cached_within_ttl() -> None:
+    route = respx.get("http://localhost:11434/api/tags").mock(
+        return_value=httpx.Response(200, json={})
+    )
+    clock = {"t": 100.0}
+    agent = OllamaAgent(
+        host="http://localhost:11434", model="gemma4:latest", now=lambda: clock["t"]
+    )
+
+    await agent.refresh_health()
+    clock["t"] += 10.0  # inside the 30s TTL
+    await agent.refresh_health()
+
+    assert route.call_count == 1
+    assert agent.active is True
+
+
+@respx.mock
+async def test_health_rechecked_after_ttl_expiry() -> None:
+    route = respx.get("http://localhost:11434/api/tags").mock(
+        side_effect=[httpx.Response(200, json={}), httpx.ConnectError("down")]
+    )
+    clock = {"t": 100.0}
+    agent = OllamaAgent(
+        host="http://localhost:11434", model="gemma4:latest", now=lambda: clock["t"]
+    )
+
+    await agent.refresh_health()
+    assert agent.active is True
+    clock["t"] += 31.0  # past the TTL — the dead Pi must be noticed
+    await agent.refresh_health()
+
+    assert route.call_count == 2
+    assert agent.active is False

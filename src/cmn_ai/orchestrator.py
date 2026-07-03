@@ -12,7 +12,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import replace
 from datetime import UTC, datetime
 
-from cmn_ai.agents.base import Agent
+from cmn_ai.agents.base import Agent, HealthCheckedAgent
 from cmn_ai.budget.governor import BudgetGovernor
 from cmn_ai.core import AgentResponse, RouteDecision, Task
 from cmn_ai.router.interface import Router
@@ -89,6 +89,12 @@ class Orchestrator:
         the UI stays transparent about what happened. An explicitly user-selected
         agent is never silently rerouted.
         """
+        # Discover backend availability first (e.g. is the Pi reachable?) so the
+        # router only ever considers agents that can actually answer.
+        for candidate_agent in self._agents.values():
+            if isinstance(candidate_agent, HealthCheckedAgent):
+                await candidate_agent.refresh_health()
+
         decision = self.route(task, agent_override=agent_override)
         if decision.blocked:
             self._log(task.prompt, decision, None)

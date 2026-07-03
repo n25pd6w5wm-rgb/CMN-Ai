@@ -174,3 +174,119 @@ def test_research_blocked_when_no_local_can_serve(tmp_path: Path) -> None:
     )
     assert decision.blocked is True
     assert decision.agent == ""
+
+
+# ---------- paid selection: preference by task type, not just cheapest ----------
+
+
+def _gemini(active: bool = True) -> FakeAgent:
+    return FakeAgent(
+        "gemini",
+        capabilities={Capability.CHAT, Capability.MULTIMODAL},
+        cost=CostPerMTok(0.28, 2.3),
+        bucket=Bucket.GENERAL,
+        active=active,
+    )
+
+
+def _anthropic() -> FakeAgent:
+    return FakeAgent(
+        "anthropic",
+        capabilities={Capability.CHAT, Capability.CODE, Capability.MULTIMODAL},
+        cost=CostPerMTok(2.8, 13.8),
+        bucket=Bucket.GENERAL,
+    )
+
+
+def _openai() -> FakeAgent:
+    return FakeAgent(
+        "openai",
+        capabilities={Capability.CHAT, Capability.CODE},
+        cost=CostPerMTok(0.69, 4.14),
+        bucket=Bucket.GENERAL,
+    )
+
+
+def test_low_chat_picks_cheapest_paid(tmp_path: Path) -> None:
+    router = RuleRouter()
+    decision = router.select(
+        Task(prompt="hi"),
+        _c(Capability.CHAT, Complexity.LOW, Bucket.GENERAL),
+        {"gemini": _gemini(), "anthropic": _anthropic(), "openai": _openai()},
+        _governor(tmp_path),
+    )
+    assert decision.agent == "gemini"
+
+
+def test_high_chat_prefers_sonnet_over_cheaper_models(tmp_path: Path) -> None:
+    router = RuleRouter()
+    decision = router.select(
+        Task(prompt="analyse this architecture in depth"),
+        _c(Capability.CHAT, Complexity.HIGH, Bucket.GENERAL),
+        {"gemini": _gemini(), "anthropic": _anthropic(), "openai": _openai()},
+        _governor(tmp_path),
+    )
+    assert decision.agent == "anthropic"
+    assert decision.blocked is False
+
+
+def test_high_chat_uses_openai_when_sonnet_unaffordable(tmp_path: Path) -> None:
+    gov = _governor(tmp_path)
+    # leave just enough headroom for the cheap model, not for sonnet
+    remaining = gov.status().buckets[Bucket.GENERAL].cap_eur - 0.01
+    gov.record(Bucket.GENERAL, "x", "m", Usage(0, 0), eur=remaining)
+    router = RuleRouter()
+    decision = router.select(
+        Task(prompt="analyse this architecture in depth"),
+        _c(Capability.CHAT, Complexity.HIGH, Bucket.GENERAL),
+        {"gemini": _gemini(), "anthropic": _anthropic(), "openai": _openai()},
+        gov,
+    )
+    assert decision.agent == "openai"
+    assert decision.blocked is False
+
+
+def test_code_prefers_coding_bucket_over_general_paid(tmp_path: Path) -> None:
+    router = RuleRouter()
+    decision = router.select(
+        Task(prompt="refactor this complex module"),
+        _c(Capability.CODE, Complexity.HIGH, Bucket.CODING),
+        {"coding": _coding(), "anthropic": _anthropic(), "openai": _openai()},
+        _governor(tmp_path),
+    )
+    assert decision.agent == "coding"
+
+
+def test_multimodal_prefers_gemini_then_anthropic(tmp_path: Path) -> None:
+    router = RuleRouter()
+    agents = {"gemini": _gemini(), "anthropic": _anthropic(), "openai": _openai()}
+    decision = router.select(
+        Task(prompt="what is in this image?", has_attachments=True),
+        _c(Capability.MULTIMODAL, Complexity.LOW, Bucket.GENERAL),
+        agents,
+        _governor(tmp_path),
+    )
+    assert decision.agent == "gemini"
+
+    without_gemini = {"gemini": _gemini(active=False), "anthropic": _anthropic()}
+    decision = router.select(
+        Task(prompt="what is in this image?", has_attachments=True),
+        _c(Capability.MULTIMODAL, Complexity.LOW, Bucket.GENERAL),
+        without_gemini,
+        _governor(tmp_path),
+    )
+    assert decision.agent == "anthropic"
+
+
+def test_all_unaffordable_blocks_on_top_preference(tmp_path: Path) -> None:
+    gov = _governor(tmp_path)
+    gov.record(Bucket.GENERAL, "x", "m", Usage(0, 0), eur=100.0)
+    router = RuleRouter(on_limit=OnLimit.BLOCK)
+    decision = router.select(
+        Task(prompt="analyse this architecture in depth"),
+        _c(Capability.CHAT, Complexity.HIGH, Bucket.GENERAL),
+        {"gemini": _gemini(), "anthropic": _anthropic(), "openai": _openai()},
+        gov,
+    )
+    assert decision.blocked is True
+    assert decision.agent == "anthropic"  # the honest top preference, not the cheapest

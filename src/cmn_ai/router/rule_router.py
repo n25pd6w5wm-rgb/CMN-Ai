@@ -77,7 +77,14 @@ _HARD_KEYWORDS = (
 )
 _HARD_LENGTH = 400
 _FREE = CostPerMTok(0.0, 0.0)
-_DEFAULT_OUTPUT_TOKENS = 800
+_DEFAULT_OUTPUT_TOKENS = 1500
+
+# Paid-agent preference by task shape (agent names in priority order). Agents not
+# listed follow, sorted by output price. Low-complexity chat stays cheapest-first —
+# that is the volume traffic the budget lives on.
+_HIGH_CHAT_PREFERENCE = ("anthropic", "openai")
+_CODE_PREFERENCE = ("anthropic", "openai")  # after coding-bucket agents
+_MULTIMODAL_PREFERENCE = ("gemini", "anthropic")
 
 # Prompt optimisation (optional, local). Only substantial prompts are worth rewriting;
 # trivial ones rarely benefit and risk distortion. A rewrite is rejected if it is empty
@@ -166,11 +173,12 @@ class RuleRouter:
                 classification, free[0], "free local model for low-complexity task", 0.0
             )
 
-        candidate = self._pick_paid(paid, classification)
-        if candidate is not None:
+        ranked = self._paid_preference(paid, classification)
+        for candidate in ranked:
             est = _estimate_eur(candidate, task)
             if governor.can_spend(candidate.bucket, est):
                 return self._decide(classification, candidate, "best paid agent within budget", est)
+        if ranked:
             if self._on_limit is OnLimit.FALLBACK_FREE and free:
                 return self._decide(
                     classification,
@@ -179,7 +187,8 @@ class RuleRouter:
                     0.0,
                     fell_back=True,
                 )
-            return self._blocked(classification, candidate, est)
+            top = ranked[0]
+            return self._blocked(classification, top, _estimate_eur(top, task))
 
         if free:
             return self._decide(
@@ -191,15 +200,31 @@ class RuleRouter:
             )
         return self._blocked(classification, None, 0.0)
 
-    def _pick_paid(self, paid: list[Agent], c: Classification) -> Agent | None:
+    def _paid_preference(self, paid: list[Agent], c: Classification) -> list[Agent]:
+        """Rank paid agents for this task: preferred names first, then by price.
+
+        High-complexity chat deserves a strong model (Sonnet-tier) rather than the
+        globally cheapest; code goes to the coding-bucket specialist; multimodal to a
+        vision-capable model. Everything unlisted trails in cheapest-output order, so
+        the first *affordable* entry of the ranking wins.
+        """
         if not paid:
-            return None
-        pool = paid
+            return []
+        by_cost = sorted(paid, key=lambda a: (a.cost_per_mtok.output_eur, a.name))
+        named = {a.name: a for a in paid}
+
+        preferred: list[Agent] = []
         if c.capability is Capability.CODE:
-            coding = [a for a in paid if a.bucket is Bucket.CODING]
-            if coding:
-                pool = coding
-        return min(pool, key=lambda a: (a.cost_per_mtok.output_eur, a.name))
+            preferred = [a for a in by_cost if a.bucket is Bucket.CODING]
+            preferred += [named[n] for n in _CODE_PREFERENCE if n in named]
+        elif c.capability is Capability.MULTIMODAL:
+            preferred = [named[n] for n in _MULTIMODAL_PREFERENCE if n in named]
+        elif c.capability is Capability.CHAT and c.complexity is Complexity.HIGH:
+            preferred = [named[n] for n in _HIGH_CHAT_PREFERENCE if n in named]
+
+        ranked = list(dict.fromkeys(preferred))  # de-dupe, keep order
+        ranked += [a for a in by_cost if a not in ranked]
+        return ranked
 
     def _decide(
         self,

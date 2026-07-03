@@ -175,3 +175,52 @@ async def test_no_failover_for_user_selected_agent(tmp_path: Path) -> None:
     else:
         raise AssertionError("an explicit agent choice must not be silently rerouted")
     assert paid.calls == 0
+
+
+# ---------- health checks: agents that expose one are refreshed before routing ----------
+
+
+class HealthAwareAgent(FakeAgent):
+    """Fake local agent whose availability is discovered via refresh_health()."""
+
+    def __init__(self, *, healthy: bool) -> None:
+        super().__init__(
+            "local",
+            capabilities={Capability.CHAT, Capability.CODE},
+            cost=FREE,
+            bucket=Bucket.GENERAL,
+        )
+        self.active = False  # pessimistic until checked, like the real OllamaAgent
+        self._healthy = healthy
+        self.refreshes = 0
+
+    async def refresh_health(self) -> None:
+        self.refreshes += 1
+        self.active = self._healthy
+
+
+async def test_handle_refreshes_health_checked_agents_before_routing(tmp_path: Path) -> None:
+    gov = _governor(tmp_path)
+    local = HealthAwareAgent(healthy=True)
+    orch = Orchestrator(agents={"local": local}, router=RuleRouter(), governor=gov)
+
+    decision, response = await orch.handle(Task(prompt="hello there"))
+
+    assert local.refreshes == 1
+    assert decision.agent == "local"
+    assert response is not None
+
+
+async def test_offline_local_routes_to_paid_without_fallback_flag(tmp_path: Path) -> None:
+    gov = _governor(tmp_path)
+    local, paid = HealthAwareAgent(healthy=False), _paid_chat()
+    orch = Orchestrator(
+        agents={"local": local, "anthropic": paid}, router=RuleRouter(), governor=gov
+    )
+
+    decision, response = await orch.handle(Task(prompt="hello there"))
+
+    assert local.calls == 0  # the dead Pi is never even tried
+    assert decision.agent == "anthropic"
+    assert decision.fell_back is False  # a clean primary decision, not a fallback
+    assert response is not None and response.text == "paid answer"

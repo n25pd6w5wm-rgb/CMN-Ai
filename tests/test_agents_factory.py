@@ -17,9 +17,10 @@ from cmn_ai.core import Bucket, Capability
 def test_only_enabled_agents_are_built() -> None:
     settings = load_settings(profile="mac")
     agents = build_agents(settings)
-    # default.yaml enables only the local agent
+    # default.yaml enables only the local agent; it starts inactive until its
+    # health check has actually seen a reachable Ollama.
     assert "local" in agents
-    assert agents["local"].active is True
+    assert agents["local"].active is False
     assert "anthropic" not in agents
 
 
@@ -87,3 +88,13 @@ def test_cloud_agent_built_but_dormant_without_key() -> None:
     assert "perplexity" in agents
     assert agents["perplexity"].active is False
     assert Capability.RESEARCH in agents["perplexity"].capabilities
+
+
+def test_anthropic_advertises_multimodal(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
+    settings = load_settings(profile="mac")
+    settings.agents["anthropic"].enabled = True
+
+    agents = build_agents(settings)
+
+    assert Capability.MULTIMODAL in agents["anthropic"].capabilities

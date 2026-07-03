@@ -25,7 +25,9 @@ from cmn_ai.core import Bucket, Capability
 # Capabilities advertised by each known config key.
 _CAPABILITIES: dict[str, frozenset[Capability]] = {
     "local": frozenset({Capability.CHAT, Capability.CODE}),
-    "anthropic": frozenset({Capability.CHAT, Capability.CODE}),
+    # Claude models accept images and rich extracted document context, so anthropic
+    # also serves as the multimodal fallback when gemini has no key.
+    "anthropic": frozenset({Capability.CHAT, Capability.CODE, Capability.MULTIMODAL}),
     "coding": frozenset({Capability.CODE}),
     "openai": frozenset({Capability.CHAT, Capability.CODE}),
     "gemini": frozenset({Capability.CHAT, Capability.MULTIMODAL}),
