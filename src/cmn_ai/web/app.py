@@ -704,6 +704,8 @@ def build_app(state: AppState) -> FastAPI:
             if deliverables:
                 answer_text = clean_text
 
+            if response.thinking:
+                yield _sse("thinking", {"text": response.thinking})
             for word in answer_text.split(" "):
                 yield _sse("delta", {"text": word + " "})
             for fe in file_events:

@@ -703,3 +703,22 @@ main.stage.dropzone-active::after {
   border-radius: 12px; text-decoration: none;
 }
 .file-card:hover { border-color: var(--accent); color: var(--accent); }
+
+/* Collapsed model reasoning ("So hat die KI gedacht") */
+.thinking-box {
+  margin: 0 0 6px; max-width: 85%;
+  border: 1px dashed var(--line); border-radius: 12px;
+  background: var(--panel);
+}
+.thinking-box summary {
+  cursor: pointer; padding: 6px 12px;
+  font: 500 0.75rem var(--mono); color: var(--ink-faint);
+  list-style: none;
+}
+.thinking-box summary::-webkit-details-marker { display: none; }
+.thinking-box[open] summary { color: var(--ink-dim); }
+.thinking-body {
+  padding: 0 12px 10px;
+  font-size: 0.82rem; color: var(--ink-dim);
+  white-space: pre-wrap; line-height: 1.5;
+}

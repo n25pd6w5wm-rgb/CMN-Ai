@@ -11,7 +11,8 @@ from __future__ import annotations
 from typing import cast
 
 from anthropic import AsyncAnthropic
-from anthropic.types import MessageParam, TextBlock, TextBlockParam
+from anthropic.types import MessageParam, TextBlock, TextBlockParam, ThinkingBlock
+from anthropic.types.thinking_config_adaptive_param import ThinkingConfigAdaptiveParam
 
 from cmn_ai.agents.base import build_messages
 from cmn_ai.core import AgentResponse, Bucket, Capability, CostPerMTok, Task, Usage
@@ -28,7 +29,7 @@ class AnthropicAgent:
         cost_per_mtok: CostPerMTok,
         capabilities: frozenset[Capability],
         bucket: Bucket,
-        max_tokens: int = 8192,
+        max_tokens: int = 16000,
     ) -> None:
         self.name = "anthropic"
         self.api_key = api_key
@@ -45,6 +46,10 @@ class AnthropicAgent:
     async def run(self, task: Task, *, system: str | None = None) -> AgentResponse:
         client = AsyncAnthropic(api_key=self.api_key)
         messages = cast(list[MessageParam], build_messages(task))
+        # Adaptive thinking: the model decides when and how deeply to reason —
+        # smarter answers on hard tasks. "summarized" returns readable thought
+        # summaries (the default would return empty thinking blocks).
+        thinking: ThinkingConfigAdaptiveParam = {"type": "adaptive", "display": "summarized"}
 
         if system is not None:
             # Mark the stable system prefix for prompt caching.
@@ -60,15 +65,20 @@ class AnthropicAgent:
                 max_tokens=self._max_tokens,
                 messages=messages,
                 system=system_blocks,
+                thinking=thinking,
             )
         else:
             message = await client.messages.create(
                 model=self.model,
                 max_tokens=self._max_tokens,
                 messages=messages,
+                thinking=thinking,
             )
 
         text = "".join(block.text for block in message.content if isinstance(block, TextBlock))
+        thoughts = "".join(
+            block.thinking for block in message.content if isinstance(block, ThinkingBlock)
+        )
         usage = Usage(
             tokens_in=message.usage.input_tokens,
             tokens_out=message.usage.output_tokens,
@@ -80,4 +90,5 @@ class AnthropicAgent:
             usage=usage,
             cost_eur=self.cost_per_mtok.estimate(usage.tokens_in, usage.tokens_out),
             bucket=self.bucket,
+            thinking=thoughts,
         )

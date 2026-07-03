@@ -79,6 +79,55 @@ def test_inactive_without_key() -> None:
     assert _make_agent().active is True
 
 
-def test_default_max_tokens_is_8192() -> None:
+def test_default_max_tokens_is_16000() -> None:
+    # Adaptive thinking counts against max_tokens, so the cap leaves headroom.
     agent = _make_agent()
-    assert agent._max_tokens == 8192
+    assert agent._max_tokens == 16000
+
+
+# ---------- adaptive thinking: smarter answers + visible reasoning ----------
+
+
+def _thinking_response() -> httpx.Response:
+    return httpx.Response(
+        200,
+        json={
+            "id": "msg_1",
+            "type": "message",
+            "role": "assistant",
+            "model": "claude-sonnet-4-6",
+            "stop_reason": "end_turn",
+            "content": [
+                {"type": "thinking", "thinking": "Erst A prüfen, dann B.", "signature": "sig"},
+                {"type": "text", "text": "Antwort."},
+            ],
+            "usage": {"input_tokens": 10, "output_tokens": 20},
+        },
+    )
+
+
+@respx.mock
+async def test_payload_requests_adaptive_thinking_with_summary() -> None:
+    captured: dict[str, object] = {}
+
+    def _capture(request: httpx.Request) -> httpx.Response:
+        captured["body"] = json.loads(request.content)
+        return _message_response("ok", 1, 1)
+
+    respx.post(_URL).mock(side_effect=_capture)
+
+    await _make_agent().run(Task(prompt="hi"))
+
+    body = captured["body"]
+    assert isinstance(body, dict)
+    assert body["thinking"] == {"type": "adaptive", "display": "summarized"}
+
+
+@respx.mock
+async def test_thinking_blocks_returned_separately_from_text() -> None:
+    respx.post(_URL).mock(return_value=_thinking_response())
+
+    response = await _make_agent().run(Task(prompt="schwere frage"))
+
+    assert response.text == "Antwort."
+    assert response.thinking == "Erst A prüfen, dann B."

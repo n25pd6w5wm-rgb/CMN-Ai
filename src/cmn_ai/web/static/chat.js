@@ -244,6 +244,8 @@ function handleEvent(block, ctx) {
     ctx.raw = (ctx.raw || "") + payload.text;
     ctx.bubble.textContent = ctx.raw;
     scrollDown();
+  } else if (event === "thinking") {
+    addThinkingBox(ctx.wrap, ctx.bubble, payload.text);
   } else if (event === "file") {
     addFileCard(ctx.wrap, payload);
   } else if (event === "blocked") {
@@ -303,6 +305,20 @@ function addDownloadButton(wrap, bubble, raw) {
   mk("\u2913 docx", (btn) => exportAnswer(text, "docx", btn));
   mk("\u2913 pptx", (btn) => exportAnswer(text, "pptx", btn));
   wrap.appendChild(row);
+}
+
+function addThinkingBox(wrap, bubble, text) {
+  if (!text || !text.trim()) return;
+  const box = document.createElement("details");
+  box.className = "thinking-box";
+  const summary = document.createElement("summary");
+  summary.textContent = "\u{1F4AD} So hat die KI gedacht";
+  const body = document.createElement("div");
+  body.className = "thinking-body";
+  body.textContent = text.trim();
+  box.appendChild(summary);
+  box.appendChild(body);
+  wrap.insertBefore(box, bubble);
 }
 
 function addFileCard(wrap, payload) {

@@ -100,6 +100,9 @@ class AgentResponse:
     usage: Usage = field(default_factory=Usage)
     cost_eur: float = 0.0
     bucket: Bucket = Bucket.GENERAL
+    # Model reasoning (thought summaries), shown collapsed in the UI. Ephemeral —
+    # streamed to the client but not persisted with the conversation.
+    thinking: str = ""
 
 
 @dataclass(frozen=True, slots=True)

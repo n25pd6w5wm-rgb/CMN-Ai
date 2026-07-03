@@ -120,7 +120,7 @@ async def test_run_joins_multiple_text_parts() -> None:
 
 
 @respx.mock
-async def test_run_skips_thought_parts() -> None:
+async def test_thought_parts_become_thinking_not_text() -> None:
     respx.post(_URL).mock(
         return_value=httpx.Response(
             200,
@@ -142,6 +142,7 @@ async def test_run_skips_thought_parts() -> None:
     response = await _make_agent().run(Task(prompt="frage"))
 
     assert response.text == "Antwort"
+    assert response.thinking == "internal reasoning"
 
 
 @respx.mock
@@ -204,4 +205,7 @@ async def test_payload_sets_max_output_tokens() -> None:
 
     body = captured["body"]
     assert isinstance(body, dict)
-    assert body["generationConfig"] == {"maxOutputTokens": 8192}
+    assert body["generationConfig"] == {
+        "maxOutputTokens": 8192,
+        "thinkingConfig": {"includeThoughts": True},
+    }

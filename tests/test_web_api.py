@@ -624,6 +624,7 @@ def _recording_client(tmp_path: Path, *, vault: FakeVault | None = None) -> tupl
             self.seen_prompt = ""
             self.seen_task: Task | None = None
             self.reply = "ok"
+            self.thinking = ""
 
         async def run(self, task: Task, *, system: str | None = None) -> AgentResponse:
             self.seen_prompt = task.prompt
@@ -635,6 +636,7 @@ def _recording_client(tmp_path: Path, *, vault: FakeVault | None = None) -> tupl
                 usage=Usage(1, 1),
                 cost_eur=0.0,
                 bucket=self.bucket,
+                thinking=self.thinking,
             )
 
     rec = RecordingAgent()
@@ -833,6 +835,20 @@ def test_chat_with_file_marker_emits_file_event_and_download(tmp_path: Path) -> 
     cid = next(d for ev, d in events if ev == "conversation")["id"]
     convo = client.get(f"/api/conversations/{cid}").json()
     assert "cmn:file" not in convo["messages"][1]["content"]
+
+
+def test_chat_streams_thinking_event_before_answer(tmp_path: Path) -> None:
+    client, rec = _recording_client(tmp_path)
+    rec.reply = "Die Antwort."
+    rec.thinking = "Ich überlege kurz."
+    with client.stream("POST", "/api/chat", json={"prompt": "denk nach"}) as resp:
+        body = "".join(resp.iter_text())
+    events = _events(body)
+    thinking = [d for ev, d in events if ev == "thinking"]
+    assert thinking == [{"text": "Ich überlege kurz."}]
+    # thinking arrives before the first answer delta
+    order = [ev for ev, _ in events]
+    assert order.index("thinking") < order.index("delta")
 
 
 def test_files_endpoint_404_when_missing(tmp_path: Path) -> None:
