@@ -63,6 +63,23 @@ EOF
   sudo systemctl enable --now "cloudflared-$name"
 }
 
+# ---------- Tailscale Funnel mode (preferred: stable URLs, no domain needed) ----------
+# If the Pi is in a tailnet, expose Ollama on :443 and the vault on :8443. The
+# funnel config persists in the daemon, so it survives reboots.
+if command -v tailscale >/dev/null 2>&1 && tailscale status >/dev/null 2>&1; then
+  say "2/3  Tailscale Funnel einrichten (feste URLs, reboot-fest)"
+  sudo tailscale funnel --bg 11434
+  sudo tailscale funnel --bg --https=8443 11435
+  HOST_DNS=$(tailscale status --json | python3 -c "import json,sys; print(json.load(sys.stdin)['Self']['DNSName'].rstrip('.'))")
+  say "3/3  Fertig — diese Werte in Render eintragen (Environment):"
+  echo "    OLLAMA_HOST = https://$HOST_DNS"
+  echo "    VAULT_HOST  = https://$HOST_DNS:8443"
+  echo ""
+  echo "    Diese URLs bleiben für immer gleich — einmal eintragen reicht."
+  echo "    (Falls ein Hinweis kommt, Funnel zu aktivieren: dem Link folgen, einmalig.)"
+  exit 0
+fi
+
 # Token mode: tokens from the Zero-Trust dashboard (or fetched via API) in
 # ~/.config/cmn-ai/cf-tunnels.env as CF_TOKEN_OLLAMA=… / CF_TOKEN_VAULT=…
 TOKEN_FILE="$HOME/.config/cmn-ai/cf-tunnels.env"
