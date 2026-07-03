@@ -87,7 +87,10 @@ class GeminiAgent:
         ]
         contents.append({"role": "user", "parts": user_parts})
 
-        payload: dict[str, object] = {"contents": contents}
+        payload: dict[str, object] = {
+            "contents": contents,
+            "generationConfig": {"maxOutputTokens": 8192},
+        }
         if system is not None:
             payload["systemInstruction"] = {"parts": [{"text": system}]}
 

@@ -189,3 +189,19 @@ async def test_run_returns_partial_text_on_max_tokens_finish() -> None:
     response = await _make_agent().run(Task(prompt="frage"))
 
     assert response.text == "Angefangen aber"
+
+
+@respx.mock
+async def test_payload_sets_max_output_tokens() -> None:
+    captured: dict[str, object] = {}
+
+    def _capture(request: httpx.Request) -> httpx.Response:
+        captured["body"] = json.loads(request.content)
+        return httpx.Response(200, json={"candidates": [{"content": {"parts": [{"text": "ok"}]}}]})
+
+    respx.post(_URL).mock(side_effect=_capture)
+    await _make_agent().run(Task(prompt="hi"))
+
+    body = captured["body"]
+    assert isinstance(body, dict)
+    assert body["generationConfig"] == {"maxOutputTokens": 8192}

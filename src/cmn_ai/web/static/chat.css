@@ -693,3 +693,13 @@ main.stage.dropzone-active::after {
   border: 2px dashed var(--accent); border-radius: 14px;
   pointer-events: none;
 }
+
+/* Model-authored file downloads */
+.file-card {
+  display: inline-flex; align-items: center; gap: 8px;
+  margin-top: 8px; padding: 8px 14px;
+  font: 600 0.8rem var(--mono); color: var(--ink);
+  background: var(--panel); border: 1px solid var(--line);
+  border-radius: 12px; text-decoration: none;
+}
+.file-card:hover { border-color: var(--accent); color: var(--accent); }

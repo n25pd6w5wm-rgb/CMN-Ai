@@ -623,12 +623,13 @@ def _recording_client(tmp_path: Path, *, vault: FakeVault | None = None) -> tupl
             self.active = True
             self.seen_prompt = ""
             self.seen_task: Task | None = None
+            self.reply = "ok"
 
         async def run(self, task: Task, *, system: str | None = None) -> AgentResponse:
             self.seen_prompt = task.prompt
             self.seen_task = task
             return AgentResponse(
-                text="ok",
+                text=self.reply,
                 agent=self.name,
                 model=self.model,
                 usage=Usage(1, 1),
@@ -790,6 +791,65 @@ def test_export_rejects_unknown_format(tmp_path: Path) -> None:
     client = _client(tmp_path)
     r = client.post("/api/export", json={"content": "x", "format": "exe"})
     assert r.status_code == 422
+
+
+def test_export_docx(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    r = client.post("/api/export", json={"content": "# Brief\n\nHallo äöü", "format": "docx"})
+    assert r.status_code == 200
+    assert r.content[:2] == b"PK"  # docx is a zip container
+    assert "wordprocessingml" in r.headers["content-type"]
+
+
+# ---------- model-authored deliverables: cmn:file fences become downloads ----------
+
+
+def test_chat_with_file_marker_emits_file_event_and_download(tmp_path: Path) -> None:
+    client, rec = _recording_client(tmp_path)
+    rec.reply = (
+        "Hier ist dein Bericht.\n\n"
+        '```cmn:file name="bericht.pdf"\n'
+        "# Quartalsbericht\n\nAlles gut mit Umlauten: äöüß.\n"
+        "```\n"
+    )
+    with client.stream("POST", "/api/chat", json={"prompt": "mach mir ein pdf bitte"}) as resp:
+        body = "".join(resp.iter_text())
+    events = _events(body)
+
+    file_events = [d for ev, d in events if ev == "file"]
+    assert len(file_events) == 1
+    assert file_events[0]["name"] == "bericht.pdf"
+    url = str(file_events[0]["url"])
+
+    r = client.get(url)
+    assert r.status_code == 200
+    assert r.content[:4] == b"%PDF"
+    assert "bericht.pdf" in r.headers["content-disposition"]
+
+    # the streamed text and the stored message carry the placeholder, not the fence
+    deltas = "".join(str(d["text"]) for ev, d in events if ev == "delta")
+    assert "cmn:file" not in deltas
+    assert "bericht.pdf" in deltas
+    cid = next(d for ev, d in events if ev == "conversation")["id"]
+    convo = client.get(f"/api/conversations/{cid}").json()
+    assert "cmn:file" not in convo["messages"][1]["content"]
+
+
+def test_files_endpoint_404_when_missing(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    assert client.get("/api/files/deadbeef").status_code == 404
+
+
+def test_broken_deliverable_keeps_answer_alive(tmp_path: Path) -> None:
+    client, rec = _recording_client(tmp_path)
+    # unknown extension → served as markdown download rather than crashing
+    rec.reply = 'Vorher.\n```cmn:file name="notiz.xyz"\nInhalt\n```\nNachher.'
+    with client.stream("POST", "/api/chat", json={"prompt": "datei bitte"}) as resp:
+        body = "".join(resp.iter_text())
+    events = _events(body)
+    assert any(ev == "file" for ev, _ in events)
+    deltas = "".join(str(d["text"]) for ev, d in events if ev == "delta")
+    assert "Vorher." in deltas and "Nachher." in deltas
 
 
 # ---------- password reset ----------

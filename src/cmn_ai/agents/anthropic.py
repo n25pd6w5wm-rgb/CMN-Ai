@@ -28,7 +28,7 @@ class AnthropicAgent:
         cost_per_mtok: CostPerMTok,
         capabilities: frozenset[Capability],
         bucket: Bucket,
-        max_tokens: int = 4096,
+        max_tokens: int = 8192,
     ) -> None:
         self.name = "anthropic"
         self.api_key = api_key

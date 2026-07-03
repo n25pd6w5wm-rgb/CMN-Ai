@@ -244,6 +244,8 @@ function handleEvent(block, ctx) {
     ctx.raw = (ctx.raw || "") + payload.text;
     ctx.bubble.textContent = ctx.raw;
     scrollDown();
+  } else if (event === "file") {
+    addFileCard(ctx.wrap, payload);
   } else if (event === "blocked") {
     renderBlocked(ctx.wrap, ctx.bubble, payload);
   } else if (event === "error") {
@@ -298,8 +300,18 @@ function addDownloadButton(wrap, bubble, raw) {
   };
   mk("\u2913 md", () => downloadBlob(new Blob([text], { type: "text/markdown" }), "cmn-ai-antwort.md"));
   mk("\u2913 pdf", (btn) => exportAnswer(text, "pdf", btn));
+  mk("\u2913 docx", (btn) => exportAnswer(text, "docx", btn));
   mk("\u2913 pptx", (btn) => exportAnswer(text, "pptx", btn));
   wrap.appendChild(row);
+}
+
+function addFileCard(wrap, payload) {
+  const card = document.createElement("a");
+  card.className = "file-card";
+  card.href = payload.url;
+  card.setAttribute("download", payload.name);
+  card.textContent = `\u{1F4C4} ${payload.name} \u2014 Herunterladen`;
+  wrap.appendChild(card);
 }
 
 // ---------- conversations (chat history) ----------

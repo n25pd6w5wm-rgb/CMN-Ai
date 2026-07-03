@@ -77,3 +77,8 @@ async def test_system_prompt_carries_cache_control() -> None:
 def test_inactive_without_key() -> None:
     assert _make_agent(api_key=None).active is False
     assert _make_agent().active is True
+
+
+def test_default_max_tokens_is_8192() -> None:
+    agent = _make_agent()
+    assert agent._max_tokens == 8192

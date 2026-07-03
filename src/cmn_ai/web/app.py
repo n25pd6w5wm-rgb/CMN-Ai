@@ -13,7 +13,7 @@ from __future__ import annotations
 import json
 import os
 from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any, Literal
@@ -41,6 +41,7 @@ from cmn_ai.storage.decisions import DecisionLog
 from cmn_ai.storage.supabase_store import SupabaseConversationStore
 from cmn_ai.web.attachments import Attachment, is_image, mime_for, render_attachments
 from cmn_ai.web.auth import AuthError, SupabaseAuth, build_auth_from_env
+from cmn_ai.web.deliverables import FileStore, extract_deliverables
 from cmn_ai.web.vault_client import VaultClient, build_vault_client_from_env
 
 SESSION_COOKIE = "cmn_session"
@@ -108,6 +109,7 @@ class AppState:
     conversations: ConversationBackend | None = None
     auth: SupabaseAuth | None = None
     vault: VaultClient | None = None
+    files: FileStore = field(default_factory=FileStore)
 
 
 class ChatRequest(BaseModel):
@@ -123,7 +125,7 @@ class BenchmarkRequest(BaseModel):
 
 class ExportRequest(BaseModel):
     content: str
-    format: Literal["pdf", "pptx"]
+    format: Literal["pdf", "pptx", "docx"]
     filename: str | None = None  # without extension
 
 
@@ -172,6 +174,26 @@ def _set_session(response: Response, token: str, *, secure: bool) -> None:
 
 def _sse(event: str, data: dict[str, Any]) -> str:
     return f"event: {event}\ndata: {json.dumps(data)}\n\n"
+
+
+_MEDIA_TYPES = {
+    "pdf": "application/pdf",
+    "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
+    "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "md": "text/markdown",
+}
+
+
+def _render_document(fmt: str, content: str) -> bytes:
+    from cmn_ai.web.export import to_docx, to_pdf, to_pptx
+
+    if fmt == "pdf":
+        return to_pdf(content)
+    if fmt == "pptx":
+        return to_pptx(content)
+    if fmt == "docx":
+        return to_docx(content)
+    return content.encode("utf-8")  # markdown / plain-text fallback
 
 
 def _decision_dict(decision: RouteDecision) -> dict[str, Any]:
@@ -551,19 +573,23 @@ def build_app(state: AppState) -> FastAPI:
 
     @app.post("/api/export")
     async def export_document(req: ExportRequest) -> Response:
-        from cmn_ai.web.export import to_pdf, to_pptx
-
         name = (req.filename or "cmn-ai-antwort").strip() or "cmn-ai-antwort"
-        if req.format == "pdf":
-            payload = to_pdf(req.content)
-            media = "application/pdf"
-        else:
-            payload = to_pptx(req.content)
-            media = "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+        payload = _render_document(req.format, req.content)
         return Response(
             content=payload,
-            media_type=media,
+            media_type=_MEDIA_TYPES[req.format],
             headers={"Content-Disposition": f'attachment; filename="{name}.{req.format}"'},
+        )
+
+    @app.get("/api/files/{file_id}")
+    async def download_file(file_id: str) -> Response:
+        item = state.files.get(file_id)
+        if item is None:
+            raise HTTPException(404, "Datei nicht (mehr) verfügbar — bitte neu erstellen lassen.")
+        return Response(
+            content=item.data,
+            media_type=item.media_type,
+            headers={"Content-Disposition": f'attachment; filename="{item.name}"'},
         )
 
     @app.get("/api/vault/status")
@@ -657,14 +683,37 @@ def build_app(state: AppState) -> FastAPI:
                 )
                 yield _sse("done", {"blocked": True})
                 return
-            for word in response.text.split(" "):
+
+            # Model-authored files: extract ```cmn:file``` fences, render them to
+            # real documents and announce each as a download. A failed render must
+            # never kill the answer — the raw fence stays in the text instead.
+            answer_text = response.text
+            file_events: list[dict[str, Any]] = []
+            try:
+                clean_text, deliverables = extract_deliverables(answer_text)
+            except Exception as exc:
+                print(f"[cmn-ai] deliverable extraction failed ({exc!r})")
+                clean_text, deliverables = answer_text, []
+            for deliverable in deliverables:
+                try:
+                    data = _render_document(deliverable.format, deliverable.content)
+                    fid = state.files.put(deliverable.name, deliverable.media_type, data)
+                    file_events.append({"id": fid, "name": deliverable.name})
+                except Exception as exc:
+                    print(f"[cmn-ai] rendering {deliverable.name} failed ({exc!r})")
+            if deliverables:
+                answer_text = clean_text
+
+            for word in answer_text.split(" "):
                 yield _sse("delta", {"text": word + " "})
+            for fe in file_events:
+                yield _sse("file", {**fe, "url": f"/api/files/{fe['id']}"})
             if store is not None and cid is not None:
                 try:
                     store.add_message(
                         cid,
                         "assistant",
-                        response.text,
+                        answer_text,
                         at=datetime.now(UTC),
                         agent=response.agent,
                         model=response.model,
