@@ -9,6 +9,7 @@ allows. When a needed paid agent is unaffordable, behaviour follows the configur
 
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from dataclasses import replace
 
@@ -148,7 +149,11 @@ class RuleRouter:
         lower = prompt.lower()
         has_fence = "```" in prompt
 
-        if task.images or any(k in lower for k in _MULTIMODAL_KEYWORDS):
+        # Multimodal keywords match whole words only — "photo" must not fire on
+        # "Photosynthese". The other keyword groups keep substring matching on
+        # purpose (they include stems like "programmier" and "optimier").
+        has_mm_keyword = any(re.search(rf"\b{re.escape(k)}\b", lower) for k in _MULTIMODAL_KEYWORDS)
+        if task.images or has_mm_keyword:
             capability = Capability.MULTIMODAL
         elif has_fence or any(k in lower for k in _CODE_KEYWORDS):
             capability = Capability.CODE

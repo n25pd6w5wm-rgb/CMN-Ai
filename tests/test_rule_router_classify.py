@@ -73,3 +73,9 @@ def test_german_code_keywords_classify_code() -> None:
 def test_german_research_keywords_classify_research() -> None:
     c = RuleRouter().classify(Task(prompt="Was sind die neuesten Nachrichten zur Wahl?"))
     assert c.capability is Capability.RESEARCH
+
+
+def test_photosynthese_is_not_multimodal() -> None:
+    # "photo" must match as a word, not as a substring of Photosynthese
+    c = RuleRouter().classify(Task(prompt="Erkläre mir die Photosynthese als Bericht."))
+    assert c.capability is Capability.CHAT
