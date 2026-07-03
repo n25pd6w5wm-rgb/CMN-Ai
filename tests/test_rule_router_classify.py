@@ -35,9 +35,18 @@ def test_research_needs_web() -> None:
     assert c.needs_web is True
 
 
-def test_attachments_imply_multimodal() -> None:
-    c = RuleRouter().classify(Task(prompt="what is in this image?", has_attachments=True))
+def test_images_classify_multimodal() -> None:
+    c = RuleRouter().classify(
+        Task(prompt="was ist da zu sehen?", has_attachments=True, images=(("image/png", "eA=="),))
+    )
     assert c.capability is Capability.MULTIMODAL
+
+
+def test_text_attachments_bump_complexity_not_multimodal() -> None:
+    # a dropped document deserves a strong text model, not a vision detour
+    c = RuleRouter().classify(Task(prompt="fasse das zusammen", has_attachments=True))
+    assert c.capability is Capability.CHAT
+    assert c.complexity is Complexity.HIGH
 
 
 def test_long_or_hard_prompt_is_high_complexity() -> None:

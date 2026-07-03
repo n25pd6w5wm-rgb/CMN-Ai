@@ -721,7 +721,7 @@ def test_chat_attachment_survives_vault_hits(tmp_path: Path) -> None:
     assert "Fass alles zusammen." in rec.seen_prompt
 
 
-def test_chat_attachment_routes_as_multimodal(tmp_path: Path) -> None:
+def test_chat_text_attachment_bumps_complexity(tmp_path: Path) -> None:
     client, rec = _recording_client(tmp_path)
     body = {
         "prompt": "Was steht in der Datei?",
@@ -731,8 +731,36 @@ def test_chat_attachment_routes_as_multimodal(tmp_path: Path) -> None:
         body_text = "".join(resp.iter_text())
     route = next(d for ev, d in _events(body_text) if ev == "route")
     classification = cast(dict[str, object], route["classification"])
-    assert classification["capability"] == "multimodal"
+    assert classification["complexity"] == "high"
     assert rec.seen_task is not None and rec.seen_task.has_attachments
+
+
+def test_chat_image_attachment_populates_task_images(tmp_path: Path) -> None:
+    client, rec = _recording_client(tmp_path)
+    body = {
+        "prompt": "Was ist auf dem Bild?",
+        "attachments": [{"name": "foto.png", "data": _b64(b"\x89PNG\r\n\x1a\nxxxx")}],
+    }
+    with client.stream("POST", "/api/chat", json=body) as resp:
+        body_text = "".join(resp.iter_text())
+    route = next(d for ev, d in _events(body_text) if ev == "route")
+    classification = cast(dict[str, object], route["classification"])
+    assert classification["capability"] == "multimodal"
+    assert rec.seen_task is not None
+    assert rec.seen_task.images and rec.seen_task.images[0][0] == "image/png"
+    # the binary image must not leak into the text prompt
+    assert "foto.png" not in rec.seen_prompt
+
+
+def test_oversized_attachment_rejected_422(tmp_path: Path) -> None:
+    client, _rec = _recording_client(tmp_path)
+    too_big = "A" * (21 * 1024 * 1024)  # >15MB after base64 inflation
+    body = {
+        "prompt": "kurz",
+        "attachments": [{"name": "big.bin", "data": too_big}],
+    }
+    r = client.post("/api/chat", json=body)
+    assert r.status_code == 422
 
 
 # ---------- export: answers become real documents (pdf/pptx) ----------

@@ -39,11 +39,13 @@ from cmn_ai.router.interface import Router
 from cmn_ai.storage.conversations import ConversationBackend, ConversationStore
 from cmn_ai.storage.decisions import DecisionLog
 from cmn_ai.storage.supabase_store import SupabaseConversationStore
-from cmn_ai.web.attachments import Attachment, render_attachments
+from cmn_ai.web.attachments import Attachment, is_image, mime_for, render_attachments
 from cmn_ai.web.auth import AuthError, SupabaseAuth, build_auth_from_env
 from cmn_ai.web.vault_client import VaultClient, build_vault_client_from_env
 
 SESSION_COOKIE = "cmn_session"
+
+_MAX_IMAGES = 4  # per request, keeps vision payloads bounded
 
 # Legal-page contents (DE). The Impressum placeholders must be filled with the
 # operator's real details before commercial launch — a lawyer should review both.
@@ -623,10 +625,14 @@ def build_app(state: AppState) -> FastAPI:
         if sections:
             context = "\n\n---\n".join(sections)
             model_prompt = f"{context}\n\n---\nUser message: {req.prompt}"
+        images = tuple(
+            (mime_for(a.name), a.data) for a in (req.attachments or []) if is_image(a.name)
+        )[:_MAX_IMAGES]
         task = Task(
             prompt=model_prompt,
             history=history,
             has_attachments=bool(req.attachments),
+            images=images,
         )
 
         async def stream() -> AsyncIterator[str]:

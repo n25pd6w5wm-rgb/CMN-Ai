@@ -50,6 +50,8 @@ class Task:
     prompt: str
     history: tuple[Message, ...] = ()
     has_attachments: bool = False
+    # Uploaded images as (mime_type, base64) pairs — routed to a vision-capable model.
+    images: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

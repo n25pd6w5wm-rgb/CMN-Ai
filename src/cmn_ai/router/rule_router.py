@@ -126,7 +126,7 @@ class RuleRouter:
         lower = prompt.lower()
         has_fence = "```" in prompt
 
-        if task.has_attachments or any(k in lower for k in _MULTIMODAL_KEYWORDS):
+        if task.images or any(k in lower for k in _MULTIMODAL_KEYWORDS):
             capability = Capability.MULTIMODAL
         elif has_fence or any(k in lower for k in _CODE_KEYWORDS):
             capability = Capability.CODE
@@ -135,9 +135,15 @@ class RuleRouter:
         else:
             capability = Capability.CHAT
 
+        # A dropped document (text attachment) deserves a strong model even when the
+        # visible prompt is short — the real work sits in the extracted file content.
+        has_document = task.has_attachments and not task.images
         complexity = (
             Complexity.HIGH
-            if has_fence or len(prompt) > _HARD_LENGTH or any(k in lower for k in _HARD_KEYWORDS)
+            if has_fence
+            or has_document
+            or len(prompt) > _HARD_LENGTH
+            or any(k in lower for k in _HARD_KEYWORDS)
             else Complexity.LOW
         )
         bucket = Bucket.CODING if capability is Capability.CODE else Bucket.GENERAL

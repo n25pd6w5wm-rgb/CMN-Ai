@@ -86,6 +86,26 @@ def test_inactive_without_key() -> None:
 
 
 @respx.mock
+async def test_images_sent_as_inline_data_parts() -> None:
+    captured: dict[str, object] = {}
+
+    def _capture(request: httpx.Request) -> httpx.Response:
+        captured["body"] = json.loads(request.content)
+        return httpx.Response(200, json={"candidates": [{"content": {"parts": [{"text": "ok"}]}}]})
+
+    respx.post(_URL).mock(side_effect=_capture)
+
+    task = Task(prompt="was zeigt das bild?", images=(("image/png", "aGFsbG8="),))
+    await _make_agent().run(task)
+
+    body = captured["body"]
+    assert isinstance(body, dict)
+    parts = body["contents"][-1]["parts"]
+    assert {"text": "was zeigt das bild?"} in parts
+    assert {"inline_data": {"mime_type": "image/png", "data": "aGFsbG8="}} in parts
+
+
+@respx.mock
 async def test_run_joins_multiple_text_parts() -> None:
     respx.post(_URL).mock(
         return_value=httpx.Response(

@@ -550,6 +550,47 @@ $("#attach-input").addEventListener("change", async (e) => {
   await onFilesPicked(e.target.files);
   e.target.value = "";
 });
+
+// Drag & drop anywhere onto the chat area
+(() => {
+  const stage = document.querySelector("main.stage");
+  if (!stage) return;
+  let dragDepth = 0;
+  stage.addEventListener("dragenter", (e) => {
+    e.preventDefault();
+    dragDepth += 1;
+    stage.classList.add("dropzone-active");
+  });
+  stage.addEventListener("dragover", (e) => e.preventDefault());
+  stage.addEventListener("dragleave", () => {
+    dragDepth = Math.max(0, dragDepth - 1);
+    if (dragDepth === 0) stage.classList.remove("dropzone-active");
+  });
+  stage.addEventListener("drop", async (e) => {
+    e.preventDefault();
+    dragDepth = 0;
+    stage.classList.remove("dropzone-active");
+    if (e.dataTransfer && e.dataTransfer.files.length) {
+      await onFilesPicked(e.dataTransfer.files);
+    }
+  });
+})();
+
+// Pasted files (e.g. screenshots) become attachments
+promptEl.addEventListener("paste", async (e) => {
+  const items = e.clipboardData ? e.clipboardData.items : [];
+  const files = [];
+  for (const item of items) {
+    if (item.kind === "file") {
+      const f = item.getAsFile();
+      if (f) files.push(f.name === "image.png" ? new File([f], `screenshot-${Date.now()}.png`, { type: f.type }) : f);
+    }
+  }
+  if (files.length) {
+    e.preventDefault();
+    await onFilesPicked(files);
+  }
+});
 $("#raise-btn").addEventListener("click", raiseBudget);
 $("#new-chat").addEventListener("click", newChat);
 $("#settings-btn").addEventListener("click", openSettings);

@@ -74,14 +74,18 @@ class GeminiAgent:
         return text
 
     async def run(self, task: Task, *, system: str | None = None) -> AgentResponse:
-        contents = [
+        contents: list[dict[str, object]] = [
             {
                 "role": "model" if m.role == "assistant" else "user",
                 "parts": [{"text": m.content}],
             }
             for m in task.history
         ]
-        contents.append({"role": "user", "parts": [{"text": task.prompt}]})
+        user_parts: list[dict[str, object]] = [{"text": task.prompt}]
+        user_parts += [
+            {"inline_data": {"mime_type": mime, "data": b64}} for mime, b64 in task.images
+        ]
+        contents.append({"role": "user", "parts": user_parts})
 
         payload: dict[str, object] = {"contents": contents}
         if system is not None:
