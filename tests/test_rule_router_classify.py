@@ -56,3 +56,20 @@ def test_long_or_hard_prompt_is_high_complexity() -> None:
 
 def test_short_prompt_is_low_complexity() -> None:
     assert RuleRouter().classify(Task(prompt="hi")).complexity is Complexity.LOW
+
+
+def test_german_hard_keywords_classify_high() -> None:
+    c = RuleRouter().classify(
+        Task(prompt="Analysiere die Architektur-Tradeoffs zwischen Microservices und Monolith.")
+    )
+    assert c.complexity is Complexity.HIGH
+
+
+def test_german_code_keywords_classify_code() -> None:
+    c = RuleRouter().classify(Task(prompt="Mein Skript wirft eine Fehlermeldung beim Start."))
+    assert c.capability is Capability.CODE
+
+
+def test_german_research_keywords_classify_research() -> None:
+    c = RuleRouter().classify(Task(prompt="Was sind die neuesten Nachrichten zur Wahl?"))
+    assert c.capability is Capability.RESEARCH

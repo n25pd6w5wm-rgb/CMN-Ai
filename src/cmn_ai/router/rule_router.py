@@ -46,6 +46,12 @@ _CODE_KEYWORDS = (
     "sql",
     "def ",
     "class ",
+    # German (users write German prompts; keywords are matched lowercased)
+    "programmier",
+    "quelltext",
+    "skript",
+    "fehlermeldung",
+    "algorithmus",
 )
 _RESEARCH_KEYWORDS = (
     "latest",
@@ -62,8 +68,15 @@ _RESEARCH_KEYWORDS = (
     "right now",
     "2025",
     "2026",
+    # German
+    "neueste",
+    "aktuell",
+    "nachrichten",
+    "heute",
+    "wetter",
+    "preis von",
 )
-_MULTIMODAL_KEYWORDS = ("image", "photo", "picture", "screenshot", "diagram")
+_MULTIMODAL_KEYWORDS = ("image", "photo", "picture", "screenshot", "diagram", "foto")
 _HARD_KEYWORDS = (
     "architecture",
     "design",
@@ -74,6 +87,15 @@ _HARD_KEYWORDS = (
     "debug",
     "distributed",
     "proof",
+    # German
+    "architektur",
+    "analysier",
+    "beweis",
+    "optimier",
+    "komplex",
+    "verteilte",
+    "konzept",
+    "strategie",
 )
 _HARD_LENGTH = 400
 _FREE = CostPerMTok(0.0, 0.0)
