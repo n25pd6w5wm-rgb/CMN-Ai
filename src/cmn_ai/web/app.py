@@ -602,25 +602,32 @@ def build_app(state: AppState) -> FastAPI:
                 print(f"[cmn-ai] conversation store failed ({exc!r}); chatting without history")
                 cid, history = None, ()
 
-        # Pull relevant notes from the on-Pi vault (if configured) as extra context.
-        # The stored user message stays the original prompt; only the model sees the notes.
-        model_prompt = req.prompt
+        # Compose the model prompt as stacked context sections (attachments, vault
+        # notes) so no source silently evicts another. The stored user message stays
+        # the original prompt; only the model sees the extra context.
+        sections: list[str] = []
         if req.attachments:
             files_block = render_attachments(req.attachments)
-            model_prompt = (
-                "The user attached these files — read them and use their content:\n\n"
-                f"{files_block}\n\n---\nUser message: {model_prompt}"
+            sections.append(
+                f"The user attached these files — read them and use their content:\n\n{files_block}"
             )
         if state.vault is not None:
             hits = state.vault.search(req.prompt)
             if hits:
                 notes = "\n---\n".join(f"[{h['path']}]\n{h['snippet']}" for h in hits)
-                model_prompt = (
+                sections.append(
                     "You have access to the user's personal notes. Use them if relevant, "
-                    "and say when you do.\n\nNOTES:\n"
-                    f"{notes}\n\n---\nUser message: {req.prompt}"
+                    f"and say when you do.\n\nNOTES:\n{notes}"
                 )
-        task = Task(prompt=model_prompt, history=history)
+        model_prompt = req.prompt
+        if sections:
+            context = "\n\n---\n".join(sections)
+            model_prompt = f"{context}\n\n---\nUser message: {req.prompt}"
+        task = Task(
+            prompt=model_prompt,
+            history=history,
+            has_attachments=bool(req.attachments),
+        )
 
         async def stream() -> AsyncIterator[str]:
             if cid is not None:

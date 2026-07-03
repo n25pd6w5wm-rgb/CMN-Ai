@@ -39,6 +39,40 @@ class GeminiAgent:
     def active(self) -> bool:
         return bool(self.api_key)
 
+    @staticmethod
+    def _extract_text(data: dict[str, object]) -> str:
+        """Join all text parts of the first candidate.
+
+        Long answers arrive split across several ``parts`` and thinking models add
+        ``thought`` parts — joining (and skipping thoughts) is required for a complete
+        answer. Blocked/empty responses raise so the orchestrator can reroute instead
+        of streaming nothing.
+        """
+        candidates = data.get("candidates")
+        if not isinstance(candidates, list) or not candidates:
+            feedback = data.get("promptFeedback")
+            reason = "no candidates"
+            if isinstance(feedback, dict) and feedback.get("blockReason"):
+                reason = str(feedback["blockReason"])
+            raise RuntimeError(f"Gemini returned no answer ({reason})")
+
+        candidate = candidates[0]
+        content = candidate.get("content") if isinstance(candidate, dict) else None
+        parts = content.get("parts") if isinstance(content, dict) else None
+        text = ""
+        if isinstance(parts, list):
+            text = "".join(
+                p["text"]
+                for p in parts
+                if isinstance(p, dict) and "text" in p and not p.get("thought")
+            )
+        if not text:
+            finish = "unknown"
+            if isinstance(candidate, dict) and candidate.get("finishReason"):
+                finish = str(candidate["finishReason"])
+            raise RuntimeError(f"Gemini returned an empty answer (finishReason: {finish})")
+        return text
+
     async def run(self, task: Task, *, system: str | None = None) -> AgentResponse:
         contents = [
             {
@@ -59,7 +93,7 @@ class GeminiAgent:
             resp.raise_for_status()
             data = resp.json()
 
-        text = data["candidates"][0]["content"]["parts"][0]["text"]
+        text = self._extract_text(data)
         raw_usage = data.get("usageMetadata") or {}
         usage = Usage(
             tokens_in=int(raw_usage.get("promptTokenCount", 0)),

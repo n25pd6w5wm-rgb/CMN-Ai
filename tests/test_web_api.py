@@ -612,19 +612,21 @@ def _b64(data: bytes) -> str:
     return base64.b64encode(data).decode()
 
 
-def _recording_client(tmp_path: Path) -> tuple[TestClient, Any]:
+def _recording_client(tmp_path: Path, *, vault: FakeVault | None = None) -> tuple[TestClient, Any]:
     class RecordingAgent:
         def __init__(self) -> None:
             self.name = "local"
             self.model = "m"
-            self.capabilities = frozenset({Capability.CHAT, Capability.CODE})
+            self.capabilities = frozenset({Capability.CHAT, Capability.CODE, Capability.MULTIMODAL})
             self.cost_per_mtok = FREE
             self.bucket = Bucket.GENERAL
             self.active = True
             self.seen_prompt = ""
+            self.seen_task: Task | None = None
 
         async def run(self, task: Task, *, system: str | None = None) -> AgentResponse:
             self.seen_prompt = task.prompt
+            self.seen_task = task
             return AgentResponse(
                 text="ok",
                 agent=self.name,
@@ -648,6 +650,7 @@ def _recording_client(tmp_path: Path) -> tuple[TestClient, Any]:
             agents={"local": rec}, router=RuleRouter(), governor=governor, now=lambda: NOW
         ),
         conversations=ConversationStore(tmp_path / "c.db"),
+        vault=cast(VaultClient, vault) if vault is not None else None,
     )
     return TestClient(build_app(state)), rec
 
@@ -698,6 +701,38 @@ def test_chat_attachment_text_is_truncated(tmp_path: Path) -> None:
         assert resp.status_code == 200
         "".join(resp.iter_text())
     assert len(rec.seen_prompt) < 60_000  # capped, not the whole 200k
+
+
+def test_chat_attachment_survives_vault_hits(tmp_path: Path) -> None:
+    vault = FakeVault(hits=[{"path": "Projekte/plan.md", "snippet": "vault wisdom"}])
+    client, rec = _recording_client(tmp_path, vault=vault)
+    body = {
+        "prompt": "Fass alles zusammen.",
+        "attachments": [{"name": "notizen.txt", "data": _b64(b"Geheimplan: Pi zuerst")}],
+    }
+    with client.stream("POST", "/api/chat", json=body) as resp:
+        assert resp.status_code == 200
+        "".join(resp.iter_text())
+    # both context sections must reach the model — the vault must not evict the files
+    assert "notizen.txt" in rec.seen_prompt
+    assert "Geheimplan: Pi zuerst" in rec.seen_prompt
+    assert "NOTES:" in rec.seen_prompt
+    assert "vault wisdom" in rec.seen_prompt
+    assert "Fass alles zusammen." in rec.seen_prompt
+
+
+def test_chat_attachment_routes_as_multimodal(tmp_path: Path) -> None:
+    client, rec = _recording_client(tmp_path)
+    body = {
+        "prompt": "Was steht in der Datei?",
+        "attachments": [{"name": "notizen.txt", "data": _b64(b"hallo")}],
+    }
+    with client.stream("POST", "/api/chat", json=body) as resp:
+        body_text = "".join(resp.iter_text())
+    route = next(d for ev, d in _events(body_text) if ev == "route")
+    classification = cast(dict[str, object], route["classification"])
+    assert classification["capability"] == "multimodal"
+    assert rec.seen_task is not None and rec.seen_task.has_attachments
 
 
 # ---------- export: answers become real documents (pdf/pptx) ----------

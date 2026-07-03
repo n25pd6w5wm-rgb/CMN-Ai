@@ -211,13 +211,15 @@ async function sendMessage(text) {
   const reader = resp.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  // One shared context for the whole stream: ctx.raw accumulates across deltas.
+  const ctx = { wrap, chip, bubble, raw: "" };
   while (true) {
     const { value, done } = await reader.read();
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
     const events = buffer.split("\n\n");
     buffer = events.pop();
-    for (const block of events) handleEvent(block, { wrap, chip, bubble });
+    for (const block of events) handleEvent(block, ctx);
   }
   bubble.classList.remove("cursor");
   loadBudget();
