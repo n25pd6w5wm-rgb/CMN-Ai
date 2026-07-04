@@ -1,28 +1,30 @@
-/* cmn-ai — clean, modern dark chat UI.
-   Cool neutral palette, single indigo accent, Inter type, calm spacing. */
+/* cmn-ai — warm, editorial chat UI (Design 3.0).
+   Warm charcoal/cream palette, blue accent with a pink brand spark,
+   Newsreader serif for display headings, Inter body, JetBrains Mono labels. */
 
 :root {
-  --bg: #0c0d10;
-  --bg-rail: #0f1115;
-  --panel: #15171c;
-  --panel-2: #1a1d23;
-  --line: #24272e;
-  --line-soft: #1d2026;
-  --ink: #e9ebef;
-  --ink-dim: #9aa1ad;
-  --ink-faint: #626974;
+  --bg: #1c1a18;
+  --bg-rail: #1f1e1c;
+  --panel: #26241f;
+  --panel-2: #302f2b;
+  --line: rgba(255, 255, 255, 0.07);
+  --line-soft: rgba(255, 255, 255, 0.045);
+  --ink: #f3f1ec;
+  --ink-dim: #b6b1a9;
+  --ink-faint: #6d6a62;
   --accent: #82b8e6;
   --accent-2: #3e97dd;
-  --accent-ink: #0b0c10;
-  --bubble-user: #1e3a52;
-  --bubble-user-line: #2d567a;
-  --ok: #3fb564;
-  --danger: #e5704b;
+  --accent-ink: #ffffff;
+  --bubble-user: #302f2b;
+  --bubble-user-line: rgba(255, 255, 255, 0.09);
+  --ok: #57b06f;
+  --danger: #d9694a;
   --brand-pink: #f0569e;
   --radius: 14px;
   --radius-lg: 18px;
   --mono: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, monospace;
   --sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --serif: "Newsreader", Georgia, "Times New Roman", serif;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.25);
 }
 
@@ -77,7 +79,7 @@ html, body {
   font-family: var(--sans); font-size: 13.5px; font-weight: 600; cursor: pointer;
   transition: background 0.15s, box-shadow 0.15s;
 }
-.new-chat:hover { background: var(--accent); box-shadow: 0 4px 14px rgba(99, 102, 241, 0.35); }
+.new-chat:hover { background: var(--accent); box-shadow: 0 4px 14px color-mix(in srgb, var(--accent-2) 35%, transparent); }
 
 .chats-panel { display: flex; flex-direction: column; min-height: 0; max-height: 34vh; }
 .chats { list-style: none; margin: 0; padding: 0; overflow-y: auto; }
@@ -205,7 +207,7 @@ html, body {
 .roster .r-tools {
   font-size: 9px; color: var(--accent); margin-left: auto; padding: 2px 7px;
   border: 1px solid var(--line); border-radius: 999px; white-space: nowrap;
-  background: rgba(124, 140, 255, 0.08);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
 }
 
 .this-week { float: right; color: var(--ink-faint); font-weight: 400; letter-spacing: 0.04em; }
@@ -265,9 +267,10 @@ html, body {
 
 .welcome { max-width: 600px; margin: 8vh auto 0; }
 .welcome h1 {
-  font-weight: 700;
-  font-size: clamp(30px, 4vw, 42px);
-  letter-spacing: -0.025em;
+  font-family: var(--serif);
+  font-weight: 500;
+  font-size: clamp(32px, 4.2vw, 46px);
+  letter-spacing: -0.015em;
   margin: 0 0 14px;
   background: linear-gradient(180deg, var(--ink), var(--ink-dim));
   -webkit-background-clip: text;
@@ -375,7 +378,7 @@ html, body {
 }
 .composer textarea:focus {
   border-color: var(--accent-2);
-  box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.18);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-2) 18%, transparent);
 }
 .composer textarea::placeholder { color: var(--ink-faint); }
 #send {
@@ -389,7 +392,7 @@ html, body {
   cursor: pointer;
   transition: transform 0.12s, background 0.15s, box-shadow 0.15s;
 }
-#send:hover { background: var(--accent); box-shadow: 0 4px 14px rgba(99, 102, 241, 0.4); }
+#send:hover { background: var(--accent); box-shadow: 0 4px 14px color-mix(in srgb, var(--accent-2) 40%, transparent); }
 #send:active { transform: scale(0.94); }
 #send:disabled { background: var(--ink-faint); cursor: not-allowed; box-shadow: none; }
 
@@ -410,7 +413,7 @@ html, body {
   padding: 18px 20px; border-bottom: 1px solid var(--line-soft);
   position: sticky; top: 0; background: var(--panel);
 }
-.modal-head h2 { margin: 0; font-size: 17px; font-weight: 650; }
+.modal-head h2 { margin: 0; font-family: var(--serif); font-size: 20px; font-weight: 500; }
 .modal-body { padding: 8px 20px 20px; }
 .set-section { padding: 16px 0; border-bottom: 1px solid var(--line-soft); }
 .set-section:last-child { border-bottom: 0; }
@@ -480,7 +483,7 @@ html, body {
   color: var(--ink); font-family: var(--sans); font-size: 14.5px; padding: 12px 14px; outline: none;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-#auth-form input:focus { border-color: var(--accent-2); box-shadow: 0 0 0 3px rgba(99,102,241,0.18); }
+#auth-form input:focus { border-color: var(--accent-2); box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent-2) 18%, transparent); }
 #auth-form input::placeholder { color: var(--ink-faint); }
 #auth-submit {
   margin-top: 4px; padding: 12px; border: none; border-radius: 10px;
@@ -508,8 +511,9 @@ html, body {
   color: var(--ink-faint); margin: 0 0 14px;
 }
 .lp-hero h1 {
-  font-size: clamp(32px, 5.5vw, 56px); font-weight: 800; letter-spacing: -0.03em;
-  line-height: 1.08; margin: 0 0 18px;
+  font-family: var(--serif);
+  font-size: clamp(34px, 5.5vw, 64px); font-weight: 500; letter-spacing: -0.015em;
+  line-height: 1.04; margin: 0 0 20px;
   background: linear-gradient(180deg, var(--ink), var(--ink-dim));
   -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
 }
@@ -520,7 +524,7 @@ html, body {
   background: var(--accent-2); color: #fff; font-weight: 600; font-size: 15px;
   transition: background 0.15s, box-shadow 0.15s;
 }
-.lp-btn:hover { background: var(--accent); box-shadow: 0 6px 18px rgba(99,102,241,0.4); }
+.lp-btn:hover { background: var(--accent); box-shadow: 0 8px 24px color-mix(in srgb, var(--accent-2) 42%, transparent); }
 .lp-btn.ghost { background: transparent; border: 1px solid var(--line); color: var(--ink); }
 .lp-btn.ghost:hover { background: var(--panel-2); box-shadow: none; }
 .lp-features { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; padding: 4vh 0; }
@@ -528,7 +532,7 @@ html, body {
 .lp-card h3 { margin: 0 0 8px; font-size: 15px; }
 .lp-card p { margin: 0; color: var(--ink-dim); font-size: 13.5px; line-height: 1.6; }
 .lp-install { text-align: center; padding: 8vh 0 4vh; }
-.lp-install h2 { font-size: 26px; font-weight: 700; letter-spacing: -0.02em; margin: 0 0 12px; }
+.lp-install h2 { font-family: var(--serif); font-size: 32px; font-weight: 500; letter-spacing: -0.01em; margin: 0 0 12px; }
 .lp-install p { color: var(--ink-dim); max-width: 52ch; margin: 0 auto 22px; line-height: 1.6; }
 .lp-foot {
   text-align: center; padding: 40px 0; color: var(--ink-faint);
@@ -598,46 +602,46 @@ html, body {
    Explicit choice via data-theme, else the OS decides. The logo's "ai" follows
    automatically (currentColor). */
 :root[data-theme="light"] {
-  --bg: #f6f7f9;
-  --bg-rail: #eef0f4;
+  --bg: #f4efe6;
+  --bg-rail: #f0ebe0;
   --panel: #ffffff;
-  --panel-2: #f1f3f6;
-  --line: #e2e5ea;
-  --line-soft: #eaedf1;
-  --ink: #1a1c21;
-  --ink-dim: #565e6a;
-  --ink-faint: #8a919c;
-  --accent: #2e8ad6;
-  --accent-2: #2278c2;
+  --panel-2: #f0ebe0;
+  --line: rgba(40, 35, 28, 0.09);
+  --line-soft: rgba(40, 35, 28, 0.06);
+  --ink: #22201b;
+  --ink-dim: #57534b;
+  --ink-faint: #928c81;
+  --accent: #2b7fc4;
+  --accent-2: #2b7fc4;
   --accent-ink: #ffffff;
-  --bubble-user: #ddeafc;
-  --bubble-user-line: #bcd6f2;
-  --ok: #26884a;
-  --danger: #c9552f;
+  --bubble-user: #ffffff;
+  --bubble-user-line: rgba(40, 35, 28, 0.10);
+  --ok: #3a9b58;
+  --danger: #c25733;
   --brand-pink: #d84389;
-  --shadow: 0 1px 2px rgba(20, 24, 33, 0.08), 0 8px 24px rgba(20, 24, 33, 0.07);
+  --shadow: 0 1px 2px rgba(40, 35, 28, 0.08), 0 12px 30px rgba(40, 35, 28, 0.10);
 }
 
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]) {
-  --bg: #f6f7f9;
-  --bg-rail: #eef0f4;
+  --bg: #f4efe6;
+  --bg-rail: #f0ebe0;
   --panel: #ffffff;
-  --panel-2: #f1f3f6;
-  --line: #e2e5ea;
-  --line-soft: #eaedf1;
-  --ink: #1a1c21;
-  --ink-dim: #565e6a;
-  --ink-faint: #8a919c;
-  --accent: #2e8ad6;
-  --accent-2: #2278c2;
+  --panel-2: #f0ebe0;
+  --line: rgba(40, 35, 28, 0.09);
+  --line-soft: rgba(40, 35, 28, 0.06);
+  --ink: #22201b;
+  --ink-dim: #57534b;
+  --ink-faint: #928c81;
+  --accent: #2b7fc4;
+  --accent-2: #2b7fc4;
   --accent-ink: #ffffff;
-  --bubble-user: #ddeafc;
-  --bubble-user-line: #bcd6f2;
-  --ok: #26884a;
-  --danger: #c9552f;
+  --bubble-user: #ffffff;
+  --bubble-user-line: rgba(40, 35, 28, 0.10);
+  --ok: #3a9b58;
+  --danger: #c25733;
   --brand-pink: #d84389;
-  --shadow: 0 1px 2px rgba(20, 24, 33, 0.08), 0 8px 24px rgba(20, 24, 33, 0.07);
+  --shadow: 0 1px 2px rgba(40, 35, 28, 0.08), 0 12px 30px rgba(40, 35, 28, 0.10);
   }
 }
 
