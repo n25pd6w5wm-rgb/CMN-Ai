@@ -1,0 +1,109 @@
+- generic [ref=f1e2]:
+  - banner [ref=f1e3]:
+    - generic [ref=f1e4]:
+      - img "CMN ai" [ref=f1e6]:
+        - generic [ref=f1e19]: a
+        - generic [ref=f1e20]: i
+      - navigation [ref=f1e21]:
+        - link "Funktionen" [ref=f1e22] [cursor=pointer]:
+          - /url: "#features"
+        - link "App holen" [ref=f1e23] [cursor=pointer]:
+          - /url: "#install"
+        - button "Theme wechseln" [ref=f1e24] [cursor=pointer]:
+          - img [ref=f1e25]
+        - button "Anmelden →" [ref=f1e28] [cursor=pointer]
+  - generic [ref=f1e30]:
+    - generic [ref=f1e31]:
+      - paragraph [ref=f1e32]: the conductor
+      - heading "Die beste KI. Für jede Frage." [level=1] [ref=f1e33]:
+        - text: Die beste KI.
+        - text: Für jede Frage.
+      - paragraph [ref=f1e34]: CMN ai schickt jede Frage an das beste Modell — lokal & gratis, wenn es geht, bezahlte Experten nur, wenn es sich lohnt. Unter jeder Antwort steht, wer geantwortet hat und was es gekostet hat.
+      - generic [ref=f1e35]:
+        - button "App downloaden" [ref=f1e36] [cursor=pointer]:
+          - img [ref=f1e37]
+          - text: App downloaden
+        - button "oder im Browser öffnen →" [ref=f1e39] [cursor=pointer]
+      - generic [ref=f1e40]:
+        - generic [ref=f1e41]:
+          - generic [ref=f1e42]: 5 KIs
+          - generic [ref=f1e43]: ein Chat
+        - generic [ref=f1e45]:
+          - generic [ref=f1e46]: lokal zuerst
+          - generic [ref=f1e47]: gratis Basis
+        - generic [ref=f1e49]:
+          - generic [ref=f1e50]: 0 Blackbox
+          - generic [ref=f1e51]: Preis je Antwort
+    - generic [ref=f1e52]:
+      - generic [ref=f1e57]: cmn·ai
+      - generic [ref=f1e58]:
+        - generic [ref=f1e60]: Finde den State-Bug in meiner React-Komponente.
+        - generic [ref=f1e61]:
+          - generic [ref=f1e62]:
+            - generic [ref=f1e63]: code
+            - generic [ref=f1e64]: →
+            - generic [ref=f1e65]: claude
+            - generic [ref=f1e66]: ·
+            - generic [ref=f1e67]: €0,02
+          - paragraph [ref=f1e68]:
+            - text: Der State wird direkt mutiert —
+            - code [ref=f1e69]: setCount(c => c + 1)
+            - text: statt
+            - code [ref=f1e70]: count + 1
+            - text: löst es.
+        - generic [ref=f1e72]:
+          - generic [ref=f1e73]: Wochenbudget
+          - generic [ref=f1e74]: €11,50 / €21,00
+  - generic [ref=f1e78]:
+    - paragraph [ref=f1e79]: Warum cmn·ai
+    - heading "Ein Chat, der mitdenkt — und mitrechnet." [level=2] [ref=f1e80]
+    - generic [ref=f1e81]:
+      - generic [ref=f1e82]:
+        - img [ref=f1e84]
+        - heading "Hartes Budget" [level=3] [ref=f1e86]
+        - paragraph [ref=f1e87]: Du setzt den Monatsdeckel, cmn·ai hält ihn. Getrennte Töpfe für Chat und Coding — ist einer leer, wird lokal geantwortet oder ehrlich blockiert.
+      - generic [ref=f1e88]:
+        - img [ref=f1e90]
+        - heading "Lokal zuerst" [level=3] [ref=f1e93]
+        - paragraph [ref=f1e94]: Ein gratis Modell auf eigener Hardware trägt die Masse. Die Cloud wird engagiert, nicht abonniert.
+      - generic [ref=f1e95]:
+        - img [ref=f1e97]
+        - heading "Volle Transparenz" [level=3] [ref=f1e100]
+        - paragraph [ref=f1e101]: "Jede Antwort trägt ihren Preis: welche KI, welches Modell, wie viele Cent. Keine Blackbox."
+      - generic [ref=f1e102]:
+        - img [ref=f1e104]
+        - heading "Dateien rein & raus" [level=3] [ref=f1e107]
+        - paragraph [ref=f1e108]: Jede Datei hochladen, Antworten als PDF, Word oder PowerPoint speichern — alles direkt im Chat.
+  - generic [ref=f1e110]:
+    - generic [ref=f1e111]:
+      - heading "Die App auf dein Gerät" [level=2] [ref=f1e112]
+      - paragraph [ref=f1e113]: cmn·ai ist eine Web-App — nichts aus dem App Store, keine Updates von Hand. Einmal „installieren" und sie liegt wie eine native App auf Homescreen oder Dock.
+      - generic [ref=f1e114]:
+        - button "App downloaden" [ref=f1e115] [cursor=pointer]:
+          - img [ref=f1e116]
+          - text: App downloaden
+        - button "im Browser öffnen →" [ref=f1e118] [cursor=pointer]
+    - generic [ref=f1e119]:
+      - generic [ref=f1e120]:
+        - generic [ref=f1e121]: "01"
+        - paragraph [ref=f1e122]:
+          - strong [ref=f1e123]: "iPhone/iPad:"
+          - text: In Safari öffnen → Teilen-Symbol → „Zum Home-Bildschirm".
+      - generic [ref=f1e124]:
+        - generic [ref=f1e125]: "02"
+        - paragraph [ref=f1e126]:
+          - strong [ref=f1e127]: "Android:"
+          - text: In Chrome öffnen → Menü ⋮ → „App installieren".
+      - generic [ref=f1e128]:
+        - generic [ref=f1e129]: "03"
+        - paragraph [ref=f1e130]:
+          - strong [ref=f1e131]: "Mac/PC:"
+          - text: In Chrome/Edge auf das Install-Symbol in der Adressleiste klicken.
+  - contentinfo [ref=f1e132]:
+    - generic [ref=f1e133]:
+      - generic [ref=f1e134]: cmn·ai · cost-governed multi-AI · local-first
+      - generic [ref=f1e135]:
+        - link "Impressum" [ref=f1e136] [cursor=pointer]:
+          - /url: /impressum
+        - link "Datenschutz" [ref=f1e137] [cursor=pointer]:
+          - /url: /datenschutz
