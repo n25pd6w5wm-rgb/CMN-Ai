@@ -9,6 +9,7 @@ allows. When a needed paid agent is unaffordable, behaviour follows the configur
 
 from __future__ import annotations
 
+import hashlib
 import re
 from collections.abc import Mapping
 from dataclasses import replace
@@ -109,6 +110,12 @@ _HIGH_CHAT_PREFERENCE = ("anthropic", "openai")
 _CODE_PREFERENCE = ("anthropic", "openai")  # after coding-bucket agents
 _MULTIMODAL_PREFERENCE = ("gemini", "anthropic")
 
+# Everyday (low-complexity) chat is spread across the cheap generalists instead of
+# always the single cheapest, so the roster is actually used — the plan's "conductor
+# distributes across AIs" idea. Only agents at/under this output price join the pool;
+# strong models (Sonnet/Opus) stay reserved for hard tasks.
+_CHEAP_CHAT_MAX_OUTPUT_EUR = 6.0
+
 # Prompt optimisation (optional, local). Only substantial prompts are worth rewriting;
 # trivial ones rarely benefit and risk distortion. A rewrite is rejected if it is empty
 # or runs away in length, so optimisation can only help, never break, a request.
@@ -206,6 +213,21 @@ class RuleRouter:
                 classification, free[0], "free local model for low-complexity task", 0.0
             )
 
+        # Everyday chat: spread across the affordable cheap generalists (load-balanced
+        # by prompt so the roster is used, not just the single cheapest agent).
+        if (
+            classification.capability is Capability.CHAT
+            and classification.complexity is Complexity.LOW
+        ):
+            spread = self._distribute_cheap_chat(paid, task, governor)
+            if spread is not None:
+                return self._decide(
+                    classification,
+                    spread,
+                    "spread across cheap chat models",
+                    _estimate_eur(spread, task),
+                )
+
         ranked = self._paid_preference(paid, classification)
         for candidate in ranked:
             est = _estimate_eur(candidate, task)
@@ -232,6 +254,26 @@ class RuleRouter:
                 fell_back=True,
             )
         return self._blocked(classification, None, 0.0)
+
+    def _distribute_cheap_chat(
+        self, paid: list[Agent], task: Task, governor: BudgetGovernor
+    ) -> Agent | None:
+        """Pick one affordable cheap-tier agent, load-balanced by the prompt.
+
+        Deterministic per prompt (a stable hash indexes the sorted pool) so the same
+        question always reaches the same model, while different questions fan out
+        across the cheap generalists. Returns None if no cheap agent is affordable,
+        so the caller falls back to the normal preference ranking.
+        """
+        pool = sorted(
+            (a for a in paid if a.cost_per_mtok.output_eur <= _CHEAP_CHAT_MAX_OUTPUT_EUR),
+            key=lambda a: a.name,
+        )
+        affordable = [a for a in pool if governor.can_spend(a.bucket, _estimate_eur(a, task))]
+        if not affordable:
+            return None
+        digest = hashlib.sha256(task.prompt.encode("utf-8")).digest()
+        return affordable[int.from_bytes(digest[:4], "big") % len(affordable)]
 
     def _paid_preference(self, paid: list[Agent], c: Classification) -> list[Agent]:
         """Rank paid agents for this task: preferred names first, then by price.

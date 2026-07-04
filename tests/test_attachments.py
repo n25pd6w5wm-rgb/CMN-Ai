@@ -87,6 +87,22 @@ def test_binary_file_yields_placeholder_not_mojibake() -> None:
     assert "�" not in block
 
 
+def test_binary_placeholder_names_file_and_type() -> None:
+    # an unreadable binary still tells the model what was attached (name is in the
+    # block header; the placeholder adds type + size) so it can respond sensibly
+    raw = bytes(range(256)) * 200  # ~50 KB
+    block = render_attachments([_att("archiv.zip", raw)])
+    assert "archiv.zip" in block
+    assert "zip" in block.lower()
+    assert "KB" in block or "MB" in block
+
+
+def test_arbitrary_text_extension_still_reads() -> None:
+    # any text-based file (unusual extension) reads via the utf-8 path
+    block = render_attachments([_att("untertitel.srt", b"1\n00:00 --> 00:01\nHallo Welt")])
+    assert "Hallo Welt" in block
+
+
 def test_plain_text_still_extracted() -> None:
     block = render_attachments([_att("notiz.txt", "Hallo Ümläute".encode())])
     assert "Hallo Ümläute" in block

@@ -207,12 +207,48 @@ def _openai() -> FakeAgent:
     )
 
 
-def test_low_chat_picks_cheapest_paid(tmp_path: Path) -> None:
+def test_low_chat_spreads_across_cheap_models(tmp_path: Path) -> None:
+    # Everyday chat is distributed across the cheap generalists (the "conductor"
+    # splitting load) rather than always hammering the single cheapest one.
+    router = RuleRouter()
+    agents = {"gemini": _gemini(), "anthropic": _anthropic(), "openai": _openai()}
+    picked = set()
+    for prompt in ("hallo", "wie geht es dir", "erzähl was", "danke", "und weiter", "ok"):
+        decision = router.select(
+            Task(prompt=prompt),
+            _c(Capability.CHAT, Complexity.LOW, Bucket.GENERAL),
+            agents,
+            _governor(tmp_path),
+        )
+        picked.add(decision.agent)
+    # both cheap models get used; the expensive one (anthropic) never for trivial chat
+    assert picked == {"gemini", "openai"}
+
+
+def test_low_chat_routing_is_deterministic_per_prompt(tmp_path: Path) -> None:
+    router = RuleRouter()
+    agents = {"gemini": _gemini(), "openai": _openai()}
+    a = router.select(
+        Task(prompt="dieselbe frage"),
+        _c(Capability.CHAT, Complexity.LOW, Bucket.GENERAL),
+        agents,
+        _governor(tmp_path),
+    )
+    b = router.select(
+        Task(prompt="dieselbe frage"),
+        _c(Capability.CHAT, Complexity.LOW, Bucket.GENERAL),
+        agents,
+        _governor(tmp_path),
+    )
+    assert a.agent == b.agent  # same prompt → same model (stable, cache-friendly)
+
+
+def test_low_chat_single_cheap_agent_is_used(tmp_path: Path) -> None:
     router = RuleRouter()
     decision = router.select(
         Task(prompt="hi"),
         _c(Capability.CHAT, Complexity.LOW, Bucket.GENERAL),
-        {"gemini": _gemini(), "anthropic": _anthropic(), "openai": _openai()},
+        {"gemini": _gemini(), "anthropic": _anthropic()},  # only gemini is cheap
         _governor(tmp_path),
     )
     assert decision.agent == "gemini"

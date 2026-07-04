@@ -117,8 +117,20 @@ def _extract_text(name: str, raw: bytes) -> str:
         return _extract_pptx(raw)
     decoded = raw.decode("utf-8", errors="replace")
     if decoded and decoded.count("�") / len(decoded) > _BINARY_REPLACEMENT_RATIO:
-        return "[Binärdatei — Inhalt konnte nicht als Text gelesen werden]"
+        kind = (mimetypes.guess_type(name)[0] or ext.lstrip(".") or "unbekannt").split("/")[-1]
+        return (
+            f"[Binärdatei ({kind}, {_human_size(len(raw))}) — Inhalt nicht als Text lesbar. "
+            "Die KI kennt Dateiname und Typ, aber nicht den Inhalt.]"
+        )
     return decoded.replace("�", "")
+
+
+def _human_size(n: int) -> str:
+    if n >= 1024 * 1024:
+        return f"{n / (1024 * 1024):.1f} MB"
+    if n >= 1024:
+        return f"{n / 1024:.0f} KB"
+    return f"{n} B"
 
 
 def render_attachments(attachments: list[Attachment]) -> str:
