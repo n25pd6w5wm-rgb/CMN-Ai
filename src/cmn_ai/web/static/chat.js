@@ -431,7 +431,9 @@ async function loadModels() {
   const select = $("#model-select");
   if (select) {
     const chosen = select.value;
-    select.innerHTML = `<option value="">Auto (Dirigent)</option>`;
+    select.innerHTML =
+      `<option value="">Auto (Dirigent)</option>` +
+      `<option value="council">Team (mehrere KIs)</option>`;
     for (const m of data.models) {
       if (!m.active) continue;
       const opt = document.createElement("option");

@@ -224,3 +224,98 @@ async def test_offline_local_routes_to_paid_without_fallback_flag(tmp_path: Path
     assert decision.agent == "anthropic"
     assert decision.fell_back is False  # a clean primary decision, not a fallback
     assert response is not None and response.text == "paid answer"
+
+
+# ---------- council: multiple AIs answer together, one merges ----------
+
+
+_PAID_COST = CostPerMTok(2.8, 13.8)
+
+
+def _paid(name: str, reply: str, cost: CostPerMTok = _PAID_COST) -> FakeAgent:
+    return FakeAgent(
+        name,
+        capabilities={Capability.CHAT, Capability.CODE},
+        cost=cost,
+        bucket=Bucket.GENERAL,
+        reply=reply,
+    )
+
+
+class MergeAgent(FakeAgent):
+    """Records what it was asked to merge so the test can assert it saw both drafts."""
+
+    def __init__(self, name: str) -> None:
+        super().__init__(
+            name,
+            capabilities={Capability.CHAT, Capability.CODE},
+            cost=CostPerMTok(2.8, 13.8),
+            bucket=Bucket.GENERAL,
+            reply="MERGED",
+        )
+        self.seen = ""
+
+    async def run(self, task: Task, *, system: str | None = None) -> AgentResponse:
+        self.seen = task.prompt
+        return await super().run(task, system=system)
+
+
+async def test_council_runs_several_agents_and_merges(tmp_path: Path) -> None:
+    gov = _governor(tmp_path, monthly=1000.0)
+    a, b = _paid("gemini", "Entwurf A"), _paid("openai", "Entwurf B")
+    merger = MergeAgent("anthropic")
+    orch = Orchestrator(
+        agents={"gemini": a, "openai": b, "anthropic": merger}, router=RuleRouter(), governor=gov
+    )
+
+    decision, response = await orch.handle_council(Task(prompt="Erkläre erneuerbare Energie"))
+
+    assert response is not None
+    assert decision.agent == "council"
+    assert a.calls == 1 and b.calls == 1  # both drafts ran
+    assert "Entwurf A" in merger.seen and "Entwurf B" in merger.seen  # merger saw both
+    assert response.text == "MERGED"
+    # every contributor is named and the cost is the sum of all calls
+    for name in ("gemini", "openai", "anthropic"):
+        assert name in decision.model
+    assert response.cost_eur > 0
+
+
+async def test_council_degrades_to_single_when_one_agent(tmp_path: Path) -> None:
+    gov = _governor(tmp_path, monthly=1000.0)
+    only = _paid("gemini", "nur ich")
+    orch = Orchestrator(agents={"gemini": only}, router=RuleRouter(), governor=gov)
+
+    _decision, response = await orch.handle_council(Task(prompt="hallo"))
+
+    assert response is not None and response.text == "nur ich"
+    assert only.calls == 1  # no merge call — just the single answer
+
+
+async def test_council_works_without_local(tmp_path: Path) -> None:
+    # local is down (inactive); the paid panel still collaborates
+    gov = _governor(tmp_path, monthly=1000.0)
+    local = _local()
+    local.active = False
+    a, b = _paid("gemini", "A"), _paid("openai", "B")
+    orch = Orchestrator(
+        agents={"local": local, "gemini": a, "openai": b}, router=RuleRouter(), governor=gov
+    )
+
+    _decision, response = await orch.handle_council(Task(prompt="frage"))
+
+    assert response is not None
+    assert local.calls == 0  # the dead local model is never asked
+    assert a.calls >= 1 and b.calls >= 1  # the paid panel collaborated
+
+
+async def test_council_skips_failed_agents(tmp_path: Path) -> None:
+    gov = _governor(tmp_path, monthly=1000.0)
+    good, bad = _paid("gemini", "A"), _down_local()
+    bad.name = "openai"
+    orch = Orchestrator(agents={"gemini": good, "openai": bad}, router=RuleRouter(), governor=gov)
+
+    _decision, response = await orch.handle_council(Task(prompt="frage"))
+
+    # only the good draft survives → returned directly (no merge over one draft)
+    assert response is not None and response.text == "A"

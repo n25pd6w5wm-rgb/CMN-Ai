@@ -851,6 +851,16 @@ def test_chat_streams_thinking_event_before_answer(tmp_path: Path) -> None:
     assert order.index("thinking") < order.index("delta")
 
 
+def test_chat_council_mode_routes_as_team(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    with client.stream(
+        "POST", "/api/chat", json={"prompt": "hallo team", "agent": "council"}
+    ) as resp:
+        body = "".join(resp.iter_text())
+    route = next(d for ev, d in _events(body) if ev == "route")
+    assert route["agent"] == "council"
+
+
 def test_files_endpoint_404_when_missing(tmp_path: Path) -> None:
     client = _client(tmp_path)
     assert client.get("/api/files/deadbeef").status_code == 404

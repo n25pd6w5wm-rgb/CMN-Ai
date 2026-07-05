@@ -665,7 +665,12 @@ def build_app(state: AppState) -> FastAPI:
             if cid is not None:
                 yield _sse("conversation", {"id": cid})
             try:
-                decision, response = await state.orchestrator.handle(task, agent_override=req.agent)
+                if req.agent == "council":
+                    decision, response = await state.orchestrator.handle_council(task)
+                else:
+                    decision, response = await state.orchestrator.handle(
+                        task, agent_override=req.agent
+                    )
             except Exception as exc:  # surface failures to the user instead of a dead stream
                 print(f"[cmn-ai] chat failed: {exc!r}")
                 detail = (

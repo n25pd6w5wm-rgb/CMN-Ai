@@ -8,15 +8,28 @@ decision short-circuits: no agent runs and nothing is billed.
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable, Mapping
 from dataclasses import replace
 from datetime import UTC, datetime
 
 from cmn_ai.agents.base import Agent, HealthCheckedAgent
 from cmn_ai.budget.governor import BudgetGovernor
-from cmn_ai.core import AgentResponse, RouteDecision, Task
+from cmn_ai.core import AgentResponse, Bucket, Capability, RouteDecision, Task, Usage
 from cmn_ai.router.interface import Router
 from cmn_ai.storage.decisions import DecisionLog
+
+# Team ("council") mode: how many AIs draft an answer before one merges them.
+_COUNCIL_MAX = 3
+# When several succeed, the strongest available merges — preference order.
+_MERGE_PREFERENCE = ("anthropic", "coding", "openai", "gemini", "perplexity", "local")
+_MERGE_SYSTEM = (
+    "You are the lead of a panel of AIs. Several assistants each drafted an answer to "
+    "the same question. Merge them into one single, best answer in the user's language: "
+    "keep what they agree on, resolve contradictions sensibly, add nothing false, and "
+    "drop repetition. Write it as one coherent, well-structured Markdown reply — do not "
+    "mention that drafts existed or that you merged them."
+)
 
 
 def _utc_now() -> datetime:
@@ -147,6 +160,125 @@ class Orchestrator:
         )
         self._log(task.prompt, decision, response)
         return decision, response
+
+    async def handle_council(self, task: Task) -> tuple[RouteDecision, AgentResponse | None]:
+        """Team mode: several AIs answer in parallel, one merges them into one reply.
+
+        Robust to the local model being down — it collaborates with whatever paid
+        agents are reachable and affordable. Degrades gracefully: with a single
+        available AI it just returns that answer (no merge); with none it blocks.
+        """
+        for candidate_agent in self._agents.values():
+            if isinstance(candidate_agent, HealthCheckedAgent):
+                await candidate_agent.refresh_health()
+
+        classification = self._router.classify(task)
+        pool = self._council_pool(task, classification)
+        if not pool:
+            decision = RouteDecision(
+                classification=classification,
+                agent="council",
+                model="",
+                reason="no AI available for the team — is a model reachable or a key set?",
+                estimated_eur=0.0,
+                blocked=True,
+            )
+            self._log(task.prompt, decision, None)
+            return decision, None
+
+        task = await self._router.optimize_prompt(task)
+        results = await asyncio.gather(
+            *(a.run(task, system=SYSTEM_PROMPT) for a in pool), return_exceptions=True
+        )
+        drafts: list[AgentResponse] = [r for r in results if isinstance(r, AgentResponse)]
+        if not drafts:
+            first = next((r for r in results if isinstance(r, BaseException)), None)
+            raise first or RuntimeError("the team produced no answer")
+
+        for d in drafts:
+            self._governor.record(d.bucket, d.agent, d.model, d.usage, eur=d.cost_eur)
+
+        # A single draft needs no merge — return it as the answer.
+        if len(drafts) == 1:
+            single = drafts[0]
+            decision = self._council_decision(classification, [single], single.cost_eur)
+            self._log(task.prompt, decision, single)
+            return decision, single
+
+        merged = await self._merge_drafts(task, drafts)
+        total_cost = sum(d.cost_eur for d in drafts) + (merged.cost_eur if merged else 0.0)
+        if merged is not None:
+            self._governor.record(
+                merged.bucket, merged.agent, merged.model, merged.usage, eur=merged.cost_eur
+            )
+            text = merged.text
+            usage = merged.usage
+        else:  # merge failed — fall back to a labelled join of the drafts
+            text = await self._router.synthesize(task, drafts)
+            usage = Usage()
+        response = AgentResponse(
+            text=text,
+            agent="council",
+            model="+".join(d.agent for d in drafts),
+            usage=usage,
+            cost_eur=total_cost,
+            bucket=Bucket.GENERAL,
+        )
+        decision = self._council_decision(classification, drafts, total_cost)
+        self._log(task.prompt, decision, response)
+        return decision, response
+
+    def _council_pool(self, task: Task, classification: object) -> list[Agent]:
+        cap = getattr(classification, "capability", Capability.CHAT)
+        capable = [
+            a
+            for a in self._agents.values()
+            if a.active and (cap in a.capabilities or Capability.CHAT in a.capabilities)
+        ]
+        est_in = max(1, len(task.prompt) // 4)
+
+        def affordable(a: Agent) -> bool:
+            est = a.cost_per_mtok.estimate(est_in, 1500)
+            return est == 0.0 or self._governor.can_spend(a.bucket, est)
+
+        pool = [a for a in capable if affordable(a)]
+        # free first, then cheapest paid — diverse, budget-friendly panel
+        pool.sort(key=lambda a: (a.cost_per_mtok.output_eur, a.name))
+        return pool[:_COUNCIL_MAX]
+
+    async def _merge_drafts(self, task: Task, drafts: list[AgentResponse]) -> AgentResponse | None:
+        by_name = {d.agent: d for d in drafts}
+        merger = next(
+            (self._agents[n] for n in _MERGE_PREFERENCE if n in by_name and n in self._agents),
+            None,
+        )
+        if merger is None:
+            merger = self._agents[drafts[0].agent]
+        blocks = "\n\n".join(
+            f"[Entwurf {i + 1} · {d.agent}]\n{d.text}" for i, d in enumerate(drafts)
+        )
+        prompt = f"Ursprüngliche Frage:\n{task.prompt}\n\nDie Entwürfe:\n\n{blocks}"
+        try:
+            return await merger.run(Task(prompt=prompt), system=_MERGE_SYSTEM)
+        except Exception as exc:
+            print(f"[cmn-ai] council merge failed ({exc!r}); joining drafts instead")
+            return None
+
+    def _council_decision(
+        self, classification: object, drafts: list[AgentResponse], cost: float
+    ) -> RouteDecision:
+        from cmn_ai.core import Classification
+
+        assert isinstance(classification, Classification)
+        names = "+".join(d.agent for d in drafts)
+        reason = f"team of {len(drafts)} AIs" if len(drafts) > 1 else "team mode — one AI available"
+        return RouteDecision(
+            classification=classification,
+            agent="council",
+            model=names,
+            reason=reason,
+            estimated_eur=cost,
+        )
 
     def _log(self, prompt: str, decision: RouteDecision, response: AgentResponse | None) -> None:
         if self._decision_log is not None:
