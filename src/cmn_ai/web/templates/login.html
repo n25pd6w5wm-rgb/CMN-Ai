@@ -1,9 +1,9 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>cmn·ai — sign in</title>
+    <title>cmn·ai — Anmelden</title>
     <link rel="icon" href="/static/icons/icon-192.png" />
     <meta name="theme-color" content="#1c1a18" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -12,103 +12,102 @@
       href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/static/chat.css?v={{ css_v }}" />
     <script>try{var t=localStorage.getItem("cmn-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+    <style>
+      :root {
+        --page:#1c1a18; --surface2:#26241f; --surface3:#302f2b; --inset:#1c1b19;
+        --ink:#f3f1ec; --ink2:#b6b1a9; --ink3:#6d6a62;
+        --line:rgba(255,255,255,0.06); --line2:rgba(255,255,255,0.12);
+        --accent:#3e97dd; --accentHover:#4aa5ea; --accentSoft:rgba(62,151,221,0.14);
+      }
+      :root[data-theme="light"] {
+        --page:#f4efe6; --surface2:#ffffff; --surface3:#f0ebe0; --inset:#f3efe6;
+        --ink:#22201b; --ink2:#57534b; --ink3:#928c81;
+        --line:rgba(40,35,28,0.09); --line2:rgba(40,35,28,0.16);
+        --accent:#2b7fc4; --accentHover:#3e97dd; --accentSoft:rgba(43,127,196,0.10);
+      }
+      * { box-sizing:border-box; }
+      html, body { margin:0; height:100%; }
+      body { background:var(--page); color:var(--ink); font-family:'Inter',system-ui,-apple-system,sans-serif; display:grid; place-items:center; padding:24px; }
+      .wrap { width:100%; display:grid; place-items:center; gap:16px; }
+      .card { width:min(400px,100%); background:var(--surface2); border:1px solid var(--line2); border-radius:18px; box-shadow:0 30px 70px rgba(0,0,0,0.4); padding:34px 30px; }
+      .brand-svg { height:37px; display:inline-block; color:var(--ink); }
+      .brand-svg svg { height:37px; width:auto; display:block; }
+      .eyebrow { margin:12px 0 0; font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:0.22em; text-transform:uppercase; color:var(--ink3); }
+      .tabs { display:flex; gap:4px; background:var(--inset); border:1px solid var(--line); border-radius:11px; padding:4px; margin:24px 0 20px; }
+      .tab { flex:1; padding:9px; border:none; border-radius:8px; background:transparent; color:var(--ink2); font-family:inherit; font-size:13.5px; font-weight:500; cursor:pointer; }
+      .tab.on { background:var(--surface3); color:var(--ink); }
+      form { display:flex; flex-direction:column; gap:11px; }
+      .in { background:var(--inset); border:1px solid var(--line2); border-radius:11px; color:var(--ink); font-family:inherit; font-size:14.5px; padding:12px 14px; outline:none; }
+      .in:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accentSoft); }
+      .in::placeholder { color:var(--ink3); }
+      .submit { margin-top:4px; padding:12px; border:none; border-radius:11px; background:var(--accent); color:#fff; font-family:inherit; font-size:14.5px; font-weight:600; cursor:pointer; }
+      .submit:hover { background:var(--accentHover); }
+      .submit:disabled { opacity:0.6; cursor:wait; }
+      .forgot { background:none; border:0; color:var(--ink3); font-size:12.5px; cursor:pointer; margin-top:6px; font-family:inherit; }
+      .forgot:hover { color:var(--accent); }
+      .msg { margin:6px 0 0; font-size:12.5px; min-height:1em; text-align:center; }
+      .msg.err { color:#e0785a; } .msg.ok { color:#57b06f; }
+      .foot { font-family:'JetBrains Mono',monospace; font-size:10px; letter-spacing:0.06em; color:var(--ink3); }
+    </style>
   </head>
   <body>
-    <div class="auth-wrap">
-      <div class="auth-card">
-        <div class="auth-brand">
-          <div class="brand-mark" aria-label="CMN ai">{% include "_logo.svg" %}</div>
-          <p class="brand-sub">the conductor</p>
+    <div class="wrap">
+      <div class="card">
+        <div style="text-align:center;">
+          <span class="brand-svg" aria-label="CMN ai">{% include "_logo.svg" %}</span>
+          <p class="eyebrow">the conductor</p>
         </div>
-
-        <div class="auth-tabs">
-          <button class="auth-tab active" data-mode="login" type="button">Anmelden</button>
-          <button class="auth-tab" data-mode="signup" type="button">Konto erstellen</button>
+        <div class="tabs">
+          <button class="tab on" data-mode="login" type="button">Anmelden</button>
+          <button class="tab" data-mode="signup" type="button">Konto erstellen</button>
         </div>
-
         <form id="auth-form">
-          <input id="email" type="email" placeholder="E-Mail" autocomplete="email" required />
-          <input
-            id="password"
-            type="password"
-            placeholder="Passwort"
-            autocomplete="current-password"
-            minlength="6"
-            required
-          />
-          <button type="submit" id="auth-submit">Anmelden</button>
-          <p class="auth-msg" id="auth-msg" role="status"></p>
-          <button type="button" class="auth-link" id="forgot">Passwort vergessen?</button>
+          <input class="in" id="email" type="email" placeholder="E-Mail" autocomplete="email" required />
+          <input class="in" id="password" type="password" placeholder="Passwort" autocomplete="current-password" minlength="6" required />
+          <button class="submit" type="submit" id="auth-submit">Anmelden</button>
+          <p class="msg" id="auth-msg" role="status"></p>
+          <button class="forgot" type="button" id="forgot">Passwort vergessen?</button>
         </form>
       </div>
-      <p class="auth-foot">Cost-governed multi-AI · local-first</p>
+      <p class="foot">cost-governed multi-AI · local-first</p>
     </div>
 
     <script>
       "use strict";
       let mode = "login";
       const $ = (s) => document.querySelector(s);
+      const submit = $("#auth-submit"), msg = $("#auth-msg");
 
-      document.getElementById("forgot").addEventListener("click", async () => {
-        const email = $("#email").value.trim();
-        const msg = $("#auth-msg");
-        if (!email) {
-          msg.className = "auth-msg error";
-          msg.textContent = "Gib oben deine E-Mail-Adresse ein, dann schicken wir dir einen Reset-Link.";
-          return;
-        }
-        await fetch("/api/auth/recover", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email }),
-        }).catch(() => {});
-        msg.className = "auth-msg ok";
-        msg.textContent = "Wenn die Adresse ein Konto hat, ist ein Reset-Link unterwegs (auch im Spam nachsehen).";
-      });
-      const submit = $("#auth-submit");
-      const msg = $("#auth-msg");
-
-      document.querySelectorAll(".auth-tab").forEach((tab) => {
+      document.querySelectorAll(".tab").forEach((tab) => {
         tab.addEventListener("click", () => {
           mode = tab.dataset.mode;
-          document.querySelectorAll(".auth-tab").forEach((t) => t.classList.remove("active"));
-          tab.classList.add("active");
+          document.querySelectorAll(".tab").forEach((t) => t.classList.remove("on"));
+          tab.classList.add("on");
           submit.textContent = mode === "login" ? "Anmelden" : "Konto erstellen";
           $("#password").autocomplete = mode === "login" ? "current-password" : "new-password";
-          msg.textContent = "";
-          msg.className = "auth-msg";
+          msg.textContent = ""; msg.className = "msg";
         });
+      });
+
+      $("#forgot").addEventListener("click", async () => {
+        const email = $("#email").value.trim();
+        if (!email) { msg.className = "msg err"; msg.textContent = "Gib oben deine E-Mail-Adresse ein, dann schicken wir dir einen Reset-Link."; return; }
+        await fetch("/api/auth/recover", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email }) }).catch(() => {});
+        msg.className = "msg ok"; msg.textContent = "Wenn die Adresse ein Konto hat, ist ein Reset-Link unterwegs (auch im Spam nachsehen).";
       });
 
       $("#auth-form").addEventListener("submit", async (e) => {
         e.preventDefault();
-        msg.textContent = "";
-        msg.className = "auth-msg";
-        submit.disabled = true;
+        msg.textContent = ""; msg.className = "msg"; submit.disabled = true;
         const body = JSON.stringify({ email: $("#email").value, password: $("#password").value });
         try {
-          const resp = await fetch(`/api/auth/${mode}`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body,
-          });
+          const resp = await fetch(`/api/auth/${mode}`, { method: "POST", headers: { "Content-Type": "application/json" }, body });
           const data = await resp.json().catch(() => ({}));
-          if (!resp.ok) {
-            msg.textContent = data.detail || "Something went wrong.";
-            msg.className = "auth-msg error";
-          } else if (mode === "signup" && data.confirm_email) {
-            msg.textContent = "Check your email to confirm your account, then log in.";
-            msg.className = "auth-msg ok";
-          } else {
-            window.location.href = "/";
-            return;
-          }
-        } catch (err) {
-          msg.textContent = "Network error — please try again.";
-          msg.className = "auth-msg error";
-        }
+          if (!resp.ok) { msg.className = "msg err"; msg.textContent = data.detail || "Etwas ist schiefgelaufen."; }
+          else if (mode === "signup" && data.confirm_email) { msg.className = "msg ok"; msg.textContent = "Bestätige deine E-Mail, dann melde dich an."; }
+          else { window.location.href = "/"; return; }
+        } catch (err) { msg.className = "msg err"; msg.textContent = "Netzwerkfehler — bitte erneut versuchen."; }
         submit.disabled = false;
       });
     </script>

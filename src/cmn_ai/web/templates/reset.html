@@ -12,54 +12,72 @@
       href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
       rel="stylesheet"
     />
-    <link rel="stylesheet" href="/static/chat.css?v={{ css_v }}" />
     <script>try{var t=localStorage.getItem("cmn-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
+    <style>
+      :root {
+        --page:#1c1a18; --surface2:#26241f; --inset:#1c1b19;
+        --ink:#f3f1ec; --ink2:#b6b1a9; --ink3:#6d6a62;
+        --line:rgba(255,255,255,0.06); --line2:rgba(255,255,255,0.12);
+        --accent:#3e97dd; --accentHover:#4aa5ea; --accentSoft:rgba(62,151,221,0.14);
+      }
+      :root[data-theme="light"] {
+        --page:#f4efe6; --surface2:#ffffff; --inset:#f3efe6;
+        --ink:#22201b; --ink2:#57534b; --ink3:#928c81;
+        --line:rgba(40,35,28,0.09); --line2:rgba(40,35,28,0.16);
+        --accent:#2b7fc4; --accentHover:#3e97dd; --accentSoft:rgba(43,127,196,0.10);
+      }
+      * { box-sizing:border-box; }
+      html, body { margin:0; height:100%; }
+      body { background:var(--page); color:var(--ink); font-family:'Inter',system-ui,-apple-system,sans-serif; display:grid; place-items:center; padding:24px; }
+      .card { width:min(400px,100%); background:var(--surface2); border:1px solid var(--line2); border-radius:18px; box-shadow:0 30px 70px rgba(0,0,0,0.4); padding:34px 30px; text-align:center; }
+      .brand-svg { height:37px; display:inline-block; color:var(--ink); }
+      .brand-svg svg { height:37px; width:auto; display:block; margin:0 auto; }
+      h1 { font-family:'Newsreader',Georgia,serif; font-weight:500; font-size:24px; margin:18px 0 20px; color:var(--ink); }
+      form { display:flex; flex-direction:column; gap:11px; text-align:left; }
+      .in { background:var(--inset); border:1px solid var(--line2); border-radius:11px; color:var(--ink); font-family:inherit; font-size:14.5px; padding:12px 14px; outline:none; }
+      .in:focus { border-color:var(--accent); box-shadow:0 0 0 3px var(--accentSoft); }
+      .in::placeholder { color:var(--ink3); }
+      .submit { margin-top:4px; padding:12px; border:none; border-radius:11px; background:var(--accent); color:#fff; font-family:inherit; font-size:14.5px; font-weight:600; cursor:pointer; }
+      .submit:hover { background:var(--accentHover); }
+      .msg { margin:8px 0 0; font-size:12.5px; min-height:1em; text-align:center; }
+      .msg.err { color:#e0785a; } .msg.ok { color:#57b06f; }
+    </style>
   </head>
-  <body class="auth-body">
-    <main class="auth-card">
-      <div class="brand-mark" aria-label="CMN ai">{% include "_logo.svg" %}</div>
-      <h1 class="auth-title">Neues Passwort setzen</h1>
+  <body>
+    <main class="card">
+      <span class="brand-svg" aria-label="CMN ai">{% include "_logo.svg" %}</span>
+      <h1>Neues Passwort setzen</h1>
       <form id="reset-form">
-        <input
-          id="password"
-          type="password"
-          placeholder="Neues Passwort (min. 8 Zeichen)"
-          autocomplete="new-password"
-          minlength="8"
-          required
-        />
-        <button type="submit" id="reset-submit">Passwort speichern</button>
-        <p class="auth-msg" id="reset-msg" role="status"></p>
+        <input class="in" id="password" type="password" placeholder="Neues Passwort (min. 8 Zeichen)" autocomplete="new-password" minlength="8" required />
+        <button class="submit" type="submit" id="reset-submit">Passwort speichern</button>
+        <p class="msg" id="reset-msg" role="status"></p>
       </form>
     </main>
     <script>
       const $ = (sel) => document.querySelector(sel);
-      // Supabase puts the recovery token in the URL hash: #access_token=…&type=recovery
       const params = new URLSearchParams(window.location.hash.slice(1));
       const token = params.get("access_token");
       const msg = $("#reset-msg");
       if (!token) {
-        msg.className = "auth-msg error";
-        msg.textContent =
-          "Kein gültiger Reset-Link. Fordere auf der Anmeldeseite einen neuen an.";
+        msg.className = "msg err";
+        msg.textContent = "Kein gültiger Reset-Link. Fordere auf der Anmeldeseite einen neuen an.";
       }
       $("#reset-form").addEventListener("submit", async (e) => {
         e.preventDefault();
         if (!token) return;
-        msg.className = "auth-msg";
-        msg.textContent = "Speichere …";
+        msg.className = "msg"; msg.textContent = "Speichere …";
         const resp = await fetch("/api/auth/reset", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ access_token: token, password: $("#password").value }),
         });
         if (resp.ok) {
-          msg.className = "auth-msg ok";
+          msg.className = "msg ok";
           msg.textContent = "Passwort geändert — weiter zur Anmeldung …";
           setTimeout(() => (window.location.href = "/login"), 1200);
         } else {
           const data = await resp.json().catch(() => ({}));
-          msg.className = "auth-msg error";
+          msg.className = "msg err";
           msg.textContent = data.detail || "Der Link ist abgelaufen — bitte neu anfordern.";
         }
       });
