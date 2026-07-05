@@ -22,3 +22,7 @@ dist/
 
 # OS
 .DS_Store
+
+# local UI screenshot artifacts
+.playwright-mcp/
+/*.png

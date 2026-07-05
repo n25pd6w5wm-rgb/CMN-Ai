@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="de">
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
@@ -21,63 +21,57 @@
     <script>try{var t=localStorage.getItem("cmn-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
   </head>
   <body>
-    <div class="layout">
-      <aside class="rail">
-        <header class="brand">
-          <div class="brand-id">
-            <div class="brand-mark" aria-label="CMN ai">{% include "_logo.svg" %}</div>
-            <p class="brand-sub">the conductor</p>
-          </div>
-          <button class="icon-btn" id="settings-btn" title="Einstellungen" aria-label="Einstellungen">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
-              stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <circle cx="12" cy="12" r="3" />
-              <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
-            </svg>
-          </button>
+    <div class="cc">
+      <!-- ============ SIDEBAR ============ -->
+      <aside class="cc-side">
+        <header class="cc-brand">
+          <span class="brand-mark" aria-label="CMN ai">{% include "_logo.svg" %}</span>
         </header>
 
-        <button class="new-chat" id="new-chat">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor"
-            stroke-width="2" stroke-linecap="round" aria-hidden="true">
-            <path d="M12 5v14M5 12h14" />
-          </svg>
-          Neuer Chat
-        </button>
+        <div class="cc-newwrap">
+          <button class="cc-new" id="new-chat">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
+            Neuer Chat
+          </button>
+        </div>
 
-        <section class="panel chats-panel">
-          <h2 class="panel-title">Chats</h2>
-          <ul class="chats" id="chats">
-            <li class="chats-empty">Noch keine Chats.</li>
-          </ul>
-        </section>
+        <div class="cc-chats cc-scroll">
+          <h2 class="cc-h">Chats</h2>
+          <ul class="chats" id="chats"><li class="chats-empty">Noch keine Chats.</li></ul>
+        </div>
 
-        <section class="panel" id="budget-panel">
-          <h2 class="panel-title">Weekly budget</h2>
-          <div class="budget-head">
-            <span class="budget-monthly" id="budget-monthly">— €/mo</span>
-            <button class="ghost-btn" id="raise-btn">raise</button>
-          </div>
-          <div id="buckets"></div>
-        </section>
-
-        <section class="panel">
-          <h2 class="panel-title">The panel</h2>
-          <ul class="roster" id="roster"></ul>
-        </section>
-
-        <section class="panel">
-          <h2 class="panel-title">Activity <span class="this-week">7-day</span></h2>
-          <div class="activity" id="activity">
-            <p class="activity-empty">No requests yet.</p>
-          </div>
-        </section>
-
-        <footer class="rail-foot">local-first · paid only when it counts</footer>
+        <div class="cc-account">
+          <button class="cc-acct-btn" id="settings-btn" aria-label="Einstellungen">
+            <span class="cc-avatar">cai</span>
+            <span class="cc-acct-id">
+              <span class="cc-acct-name" id="acct-name">Mein Konto</span>
+              <span class="cc-acct-sub">Einstellungen &amp; Budget</span>
+            </span>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="var(--ink-faint)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+          </button>
+        </div>
       </aside>
 
+      <!-- ============ STAGE ============ -->
       <main class="stage">
-        <div class="transcript" id="transcript">
+        <div class="cc-top">
+          <label class="cc-model">
+            <select id="model-select" title="Welches Modell antwortet">
+              <option value="">Auto (Dirigent)</option>
+            </select>
+          </label>
+          <div class="cc-top-actions">
+            <button class="cc-ic" id="theme-btn" aria-label="Theme wechseln">
+              <svg id="ic-moon" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4.5"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+              <svg id="ic-sun" viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:none;"><path d="M21 12.8A8.5 8.5 0 1 1 11.2 3a6.6 6.6 0 0 0 9.8 9.8z"/></svg>
+            </button>
+            <button class="cc-ic" id="share-btn" aria-label="Link kopieren">
+              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 12v7a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-7"/><path d="M16 6l-4-4-4 4M12 2v13"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div class="transcript cc-scroll" id="transcript">
           <div class="welcome">
             <h1>Frag irgendetwas.</h1>
             <p>
@@ -89,84 +83,89 @@
           </div>
         </div>
 
-        <div class="attach-chips" id="attach-chips" hidden></div>
-        <form class="composer" id="composer">
-          <input type="file" id="attach-input" hidden multiple />
-          <button type="button" id="attach" aria-label="Datei anhängen" title="Datei anhängen — jeder Dateityp (max. 8 × 15 MB)">
-            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-              <path d="M21 11.5l-8.5 8.5a5.5 5.5 0 01-7.8-7.8L13 4a3.7 3.7 0 015.2 5.2l-8.2 8.2a1.8 1.8 0 01-2.6-2.6l7.6-7.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>
-            </svg>
-          </button>
-          <select id="model-select" class="model-select" title="Welches Modell antwortet">
-            <option value="">Auto (Dirigent)</option>
-          </select>
-          <textarea
-            id="prompt"
-            rows="1"
-            placeholder="Frag CMN ai …"
-            autocomplete="off"
-          ></textarea>
-          <button type="submit" id="send" aria-label="Senden">
-            <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true">
-              <path d="M3 11l18-8-8 18-2-7-8-3z" fill="currentColor" />
-            </svg>
-          </button>
-        </form>
+        <div class="cc-composer">
+          <div class="attach-chips" id="attach-chips" hidden></div>
+          <form class="composer" id="composer">
+            <textarea id="prompt" rows="1" placeholder="Frag cmn·ai …" autocomplete="off"></textarea>
+            <div class="composer-row">
+              <input type="file" id="attach-input" hidden multiple />
+              <button type="button" id="attach" aria-label="Datei anhängen" title="Datei anhängen — jeder Dateityp (max. 8 × 15 MB)">
+                <svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"><path d="M21 11.5l-8.5 8.5a5.5 5.5 0 01-7.8-7.8L13 4a3.7 3.7 0 015.2 5.2l-8.2 8.2a1.8 1.8 0 01-2.6-2.6l7.6-7.6" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>
+              </button>
+              <div class="composer-spacer"></div>
+              <button type="submit" id="send" aria-label="Senden">
+                <svg viewBox="0 0 24 24" width="19" height="19" aria-hidden="true"><path d="M12 20V5M6 11l6-6 6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              </button>
+            </div>
+          </form>
+          <p class="cc-hint">Der Dirigent wählt automatisch das passende Modell — bezahlt wird nur, wenn es zählt.</p>
+        </div>
       </main>
     </div>
 
+    <!-- ============ SETTINGS MODAL ============ -->
     <div class="modal-overlay" id="settings-overlay" hidden>
-      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="settings-title">
+      <div class="modal cc-scroll" role="dialog" aria-modal="true" aria-labelledby="settings-title">
         <header class="modal-head">
           <h2 id="settings-title">Einstellungen</h2>
-          <button class="icon-btn" id="settings-close" aria-label="Close">
-            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"
-              stroke-width="2" stroke-linecap="round" aria-hidden="true">
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
+          <button class="icon-btn" id="settings-close" aria-label="Schließen">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg>
           </button>
         </header>
         <div class="modal-body">
           <section class="set-section" id="account-section" hidden>
-            <h3>Account</h3>
+            <h3>Konto</h3>
             <div class="set-row">
               <span class="mono" id="set-email">—</span>
               <button class="ghost-btn" id="logout-btn">abmelden</button>
             </div>
           </section>
-          <section class="set-section" id="vault-section" hidden>
-            <h3>Obsidian Vault</h3>
-            <p class="set-hint">
-              Notizen werden auf dem Raspberry Pi gespeichert (nicht in der Cloud) und bei
-              passenden Fragen als Kontext genutzt.
-            </p>
-            <div class="set-row">
-              <input type="file" id="vault-files" accept=".md" multiple webkitdirectory />
-              <button class="ghost-btn" id="vault-upload-btn">hochladen</button>
-            </div>
-            <p class="set-hint" id="vault-status"></p>
-          </section>
+
           <section class="set-section">
-            <h3>Budget</h3>
-            <div class="set-row">
+            <h3>Wochenbudget</h3>
+            <div class="budget-head">
+              <span class="budget-monthly" id="budget-monthly">— €/mo</span>
+              <button class="ghost-btn" id="raise-btn">anheben</button>
+            </div>
+            <div id="buckets"></div>
+            <p class="set-hint">Rollierendes 7-Tage-Limit, getrennt nach general / coding.</p>
+            <div class="set-row" style="margin-top:12px;">
               <span>Monatsbudget</span>
               <span class="set-control">
                 <input id="set-budget" type="number" min="0" step="5" /> €
                 <button class="ghost-btn" id="set-budget-save">speichern</button>
               </span>
             </div>
-            <p class="set-hint">Wird auf ein rollierendes 7-Tage-Limit umgerechnet, getrennt nach general / coding.</p>
           </section>
-          <section class="set-section">
-            <h3>Router</h3>
-            <div class="set-row"><span>Profile</span><span class="mono" id="set-profile">—</span></div>
-            <div class="set-row"><span>Strategy</span><span class="mono" id="set-strategy">—</span></div>
-            <div class="set-row"><span>Prompt optimisation</span><span class="mono" id="set-optimize">—</span></div>
-          </section>
+
           <section class="set-section">
             <h3>Modelle</h3>
             <ul class="set-models" id="set-models"></ul>
+            <ul class="roster" id="roster" hidden></ul>
           </section>
+
+          <section class="set-section">
+            <h3>Aktivität <span class="this-week">7-Tage</span></h3>
+            <div class="activity" id="activity"><p class="activity-empty">Noch keine Anfragen.</p></div>
+          </section>
+
+          <section class="set-section">
+            <h3>Router</h3>
+            <div class="set-row"><span>Profil</span><span class="mono" id="set-profile">—</span></div>
+            <div class="set-row"><span>Strategie</span><span class="mono" id="set-strategy">—</span></div>
+            <div class="set-row"><span>Prompt-Optimierung</span><span class="mono" id="set-optimize">—</span></div>
+          </section>
+
+          <section class="set-section" id="vault-section" hidden>
+            <h3>Obsidian Vault</h3>
+            <p class="set-hint">Notizen liegen auf dem Raspberry Pi (nicht in der Cloud) und dienen bei passenden Fragen als Kontext.</p>
+            <div class="set-row">
+              <input type="file" id="vault-files" accept=".md" multiple webkitdirectory />
+              <button class="ghost-btn" id="vault-upload-btn">hochladen</button>
+            </div>
+            <p class="set-hint" id="vault-status"></p>
+          </section>
+
           <section class="set-section">
             <h3>Darstellung</h3>
             <div class="set-row">
@@ -178,21 +177,42 @@
               </select>
             </div>
           </section>
+
           <section class="set-section">
             <h3>Speed-Test</h3>
-            <p class="set-hint">
-              Schickt dieselbe kurze Frage parallel an alle aktiven Modelle und misst die
-              Antwortzeit. Bezahlte Modelle kosten dabei einen Mini-Betrag (wird verbucht).
-            </p>
-            <div class="set-row">
-              <button class="ghost-btn" id="bench-run">Speed-Test starten</button>
-            </div>
+            <p class="set-hint">Schickt dieselbe kurze Frage parallel an alle aktiven Modelle und misst die Antwortzeit. Bezahlte Modelle kosten dabei einen Mini-Betrag.</p>
+            <div class="set-row"><button class="ghost-btn" id="bench-run">Speed-Test starten</button></div>
             <ul class="bench-results" id="bench-results"></ul>
           </section>
         </div>
       </div>
     </div>
 
+    <script>
+      // Top-bar theme toggle (mirrors the settings theme select via localStorage).
+      (function () {
+        const moon = document.getElementById("ic-moon"), sun = document.getElementById("ic-sun");
+        function sync() {
+          const dark = document.documentElement.dataset.theme !== "light";
+          if (moon) moon.style.display = dark ? "block" : "none";
+          if (sun) sun.style.display = dark ? "none" : "block";
+        }
+        sync();
+        const btn = document.getElementById("theme-btn");
+        if (btn) btn.addEventListener("click", () => {
+          const dark = document.documentElement.dataset.theme !== "light";
+          const next = dark ? "light" : "dark";
+          document.documentElement.dataset.theme = next;
+          try { localStorage.setItem("cmn-theme", next); } catch (e) {}
+          const sel = document.getElementById("set-theme"); if (sel) sel.value = next;
+          sync();
+        });
+        const share = document.getElementById("share-btn");
+        if (share) share.addEventListener("click", async () => {
+          try { await navigator.clipboard.writeText(location.origin); } catch (e) {}
+        });
+      })();
+    </script>
     <script defer src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
     <script defer src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
     <script src="/static/chat.js?v={{ js_v }}"></script>

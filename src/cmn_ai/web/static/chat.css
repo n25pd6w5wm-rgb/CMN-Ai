@@ -26,6 +26,26 @@
   --sans: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
   --serif: "Newsreader", Georgia, "Times New Roman", serif;
   --shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 8px 24px rgba(0, 0, 0, 0.25);
+  /* mockup aliases (used by the shell markup) */
+  --surface3: #302f2b;
+  --inset: #1c1b19;
+  --line2: rgba(255, 255, 255, 0.10);
+  --hover: #2b2a28;
+  --sidebar: var(--bg-rail);
+}
+:root[data-theme="light"] {
+  --surface3: #f0ebe0;
+  --inset: #f3efe6;
+  --line2: rgba(40, 35, 28, 0.14);
+  --hover: #eae4d8;
+}
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --surface3: #f0ebe0;
+    --inset: #f3efe6;
+    --line2: rgba(40, 35, 28, 0.14);
+    --hover: #eae4d8;
+  }
 }
 
 * { box-sizing: border-box; }
@@ -726,3 +746,74 @@ main.stage.dropzone-active::after {
   font-size: 0.82rem; color: var(--ink-dim);
   white-space: pre-wrap; line-height: 1.5;
 }
+
+/* ============================================================
+   Design 3.0 shell — chat page rebuilt 1:1 from the mockup.
+   These rules come last so they win over the older layout rules. */
+.cc { display: grid; grid-template-columns: 276px 1fr; height: 100vh; }
+.cc-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
+.cc-scroll::-webkit-scrollbar-thumb { background: var(--line2); border-radius: 999px; border: 3px solid transparent; background-clip: padding-box; }
+
+/* sidebar */
+.cc-side { background: var(--sidebar); border-right: 1px solid var(--line-soft); display: flex; flex-direction: column; overflow: hidden; }
+.cc-brand { padding: 18px 18px 6px; }
+.cc-brand .brand-mark { display: inline-block; height: 26px; }
+.cc-brand .brand-mark svg { height: 26px; width: auto; display: block; }
+.cc-newwrap { padding: 10px 12px 14px; }
+.cc-new {
+  display: flex; align-items: center; gap: 9px; width: 100%; padding: 10px 12px;
+  background: transparent; color: var(--ink); border: 1px solid var(--line2); border-radius: 10px;
+  font-family: var(--sans); font-size: 14px; font-weight: 500; cursor: pointer; transition: background .15s, border-color .15s;
+}
+.cc-new:hover { background: var(--hover); }
+.cc-chats { flex: 1; overflow-y: auto; padding: 0 12px 12px; }
+.cc-h { margin: 0 0 6px; padding: 0 8px; font-size: 11px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--ink-faint); }
+.cc-account { border-top: 1px solid var(--line-soft); padding: 10px 12px; }
+.cc-acct-btn { display: flex; align-items: center; gap: 10px; width: 100%; padding: 8px 10px; background: transparent; border: none; border-radius: 10px; cursor: pointer; text-align: left; transition: background .15s; }
+.cc-acct-btn:hover { background: var(--hover); }
+.cc-avatar { flex: none; width: 30px; height: 30px; border-radius: 50%; background: linear-gradient(135deg, var(--accent-2), var(--accent)); display: grid; place-items: center; color: #fff; font-size: 11px; font-weight: 600; letter-spacing: .02em; }
+.cc-acct-id { flex: 1; min-width: 0; }
+.cc-acct-name { display: block; font-size: 13px; font-weight: 500; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.cc-acct-sub { display: block; font-size: 11px; color: var(--ink-faint); }
+
+/* stage / topbar */
+.stage { display: flex; flex-direction: column; height: 100vh; position: relative; min-width: 0; }
+.cc-top { display: flex; align-items: center; justify-content: space-between; padding: 12px 24px; border-bottom: 1px solid var(--line-soft); background: var(--bg); }
+.cc-model select {
+  appearance: none; -webkit-appearance: none;
+  padding: 7px 34px 7px 12px; border-radius: 9px; background: transparent; border: 1px solid var(--line2);
+  color: var(--ink); font-family: var(--sans); font-size: 13.5px; font-weight: 500; cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%239a938a' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 11px center;
+}
+.cc-model select:hover { background-color: var(--hover); }
+.cc-top-actions { display: flex; align-items: center; gap: 4px; }
+.cc-ic { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 9px; background: transparent; border: none; color: var(--ink-dim); cursor: pointer; transition: background .15s, color .15s; }
+.cc-ic:hover { background: var(--hover); color: var(--ink); }
+
+/* transcript */
+.transcript { flex: 1; overflow-y: auto; padding: 40px max(9%, 32px) 8px; display: flex; flex-direction: column; align-items: center; scroll-behavior: smooth; }
+.transcript > * { width: 100%; max-width: 720px; }
+.welcome { max-width: 720px; margin: 6vh auto 0; }
+
+/* composer pill */
+.cc-composer { padding: 12px max(9%, 32px) 22px; background: linear-gradient(180deg, transparent, var(--bg) 34%); }
+.cc-composer .attach-chips { max-width: 720px; margin: 0 auto 8px; padding: 0; }
+.composer {
+  max-width: 720px; margin: 0 auto; display: flex; flex-direction: column; gap: 8px;
+  background: var(--bubble-user); border: 1px solid var(--line2); border-radius: 20px;
+  padding: 12px 12px 10px 16px; box-shadow: 0 2px 20px rgba(0,0,0,0.14);
+}
+.composer #prompt { width: 100%; resize: none; background: transparent; border: none; outline: none; color: var(--ink); font-family: var(--sans); font-size: 15px; line-height: 1.6; padding: 2px 0; max-height: 180px; }
+.composer #prompt::placeholder { color: var(--ink-faint); }
+.composer-row { display: flex; align-items: center; gap: 8px; }
+.composer-spacer { flex: 1; }
+.composer #attach { flex: none; display: grid; place-items: center; width: 34px; height: 34px; border-radius: 9px; background: none; border: none; color: var(--ink-dim); cursor: pointer; transition: background .15s, color .15s; }
+.composer #attach:hover { background: var(--hover); color: var(--ink); }
+.composer #send { flex: none; width: 38px; height: 38px; display: grid; place-items: center; border: none; border-radius: 11px; background: var(--accent-2); color: #fff; cursor: pointer; transition: background .15s, box-shadow .15s, transform .1s; }
+.composer #send:hover { background: var(--accent); box-shadow: 0 4px 16px color-mix(in srgb, var(--accent-2) 40%, transparent); }
+.composer #send:active { transform: scale(0.94); }
+.cc-hint { text-align: center; margin: 10px auto 0; max-width: 720px; font-size: 11.5px; color: var(--ink-faint); }
+
+/* settings: serif section headings, model list */
+.set-models { list-style: none; margin: 0; padding: 0; }
