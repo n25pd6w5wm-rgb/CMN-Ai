@@ -74,3 +74,46 @@ def test_docx_roundtrip_contains_content() -> None:
 def test_pptx_still_builds_slides() -> None:
     data = to_pptx(_RICH)
     assert data[:2] == b"PK"
+
+
+_DOC = (
+    "# Quartalsbericht\n\n"
+    "Eine *kurze* Einleitung mit **Nachdruck** und `inline code`.\n\n"
+    "## Zahlen\n\n"
+    "| Monat | Umsatz |\n| --- | --- |\n| Juli | 1234 € |\n\n"
+    "### Schritte\n\n"
+    "1. Erster Schritt\n"
+    "2. Zweiter Schritt\n"
+    "   1. Unterpunkt\n\n"
+    "- Ein Aufzählungspunkt\n\n"
+    "> Ein wichtiges Zitat.\n\n"
+    "---\n\n"
+    "```python\nprint('hallo')\n```\n"
+)
+
+
+def test_pdf_rich_document_builds() -> None:
+    data = to_pdf(_DOC)
+    assert data[:4] == b"%PDF"
+    text = _pdf_text(data)
+    for needle in ("Quartalsbericht", "Erster Schritt", "Zweiter Schritt", "Zitat", "print"):
+        assert needle in text
+
+
+def test_docx_numbered_list_and_quote() -> None:
+    from docx import Document
+
+    doc = Document(io.BytesIO(to_docx(_DOC)))
+    styles = [p.style.name if p.style else "" for p in doc.paragraphs]
+    text = "\n".join(p.text for p in doc.paragraphs)
+    assert any("Number" in s for s in styles)  # a real numbered-list style is used
+    assert any(s in ("Quote", "Intense Quote") for s in styles) or "Zitat" in text
+    assert "Erster Schritt" in text
+    assert "Title" in styles  # first H1 becomes the document title
+
+
+def test_parse_recognises_ordered_and_quote() -> None:
+    from cmn_ai.web.export import _parse
+
+    kinds = {b.kind for b in _parse(_DOC)}
+    assert {"number", "bullet", "quote", "hr", "code", "table"} <= kinds
