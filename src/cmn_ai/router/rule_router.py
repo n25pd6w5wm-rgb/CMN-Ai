@@ -77,6 +77,23 @@ _RESEARCH_KEYWORDS = (
     "heute",
     "wetter",
     "preis von",
+    # research / factual-lookup intent (web search beats a cheap model's guess)
+    "recherchier",
+    "recherche",
+    "finde heraus",
+    "such nach",
+    "suche nach",
+    "wie viele",
+    "wie viel kostet",
+    "was kostet",
+    "wer ist",
+    "wer war",
+    "quelle",
+    "studie",
+    "how many",
+    "who is",
+    "look up",
+    "fact check",
 )
 _MULTIMODAL_KEYWORDS = ("image", "photo", "picture", "screenshot", "diagram", "foto")
 _HARD_KEYWORDS = (

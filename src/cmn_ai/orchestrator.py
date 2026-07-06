@@ -21,6 +21,10 @@ from cmn_ai.storage.decisions import DecisionLog
 
 # Team ("council") mode: how many AIs draft an answer before one merges them.
 _COUNCIL_MAX = 3
+# The panel is built for strength + diversity, not cheapness: a strong reasoner
+# (Claude), a web researcher (Perplexity) and a second strong generalist (GPT) —
+# the cheap flash model only joins when the stronger ones are unavailable.
+_COUNCIL_PREFERENCE = ("anthropic", "perplexity", "openai", "coding", "gemini", "local")
 # When several succeed, the strongest available merges — preference order.
 _MERGE_PREFERENCE = ("anthropic", "coding", "openai", "gemini", "perplexity", "local")
 _MERGE_SYSTEM = (
@@ -241,10 +245,12 @@ class Orchestrator:
             est = a.cost_per_mtok.estimate(est_in, 1500)
             return est == 0.0 or self._governor.can_spend(a.bucket, est)
 
-        pool = [a for a in capable if affordable(a)]
-        # free first, then cheapest paid — diverse, budget-friendly panel
-        pool.sort(key=lambda a: (a.cost_per_mtok.output_eur, a.name))
-        return pool[:_COUNCIL_MAX]
+        ready = {a.name: a for a in capable if affordable(a)}
+        # strength + diversity first (Claude, Perplexity, GPT), cheap flash last;
+        # any capable agent not named in the preference trails behind.
+        ordered = [ready[n] for n in _COUNCIL_PREFERENCE if n in ready]
+        ordered += [a for a in ready.values() if a not in ordered]
+        return ordered[:_COUNCIL_MAX]
 
     async def _merge_drafts(self, task: Task, drafts: list[AgentResponse]) -> AgentResponse | None:
         by_name = {d.agent: d for d in drafts}

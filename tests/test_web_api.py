@@ -851,6 +851,16 @@ def test_chat_streams_thinking_event_before_answer(tmp_path: Path) -> None:
     assert order.index("thinking") < order.index("delta")
 
 
+def test_chat_emits_working_status_before_answer(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    with client.stream("POST", "/api/chat", json={"prompt": "hallo"}) as resp:
+        body = "".join(resp.iter_text())
+    order = [ev for ev, _ in _events(body)]
+    status = [d for ev, d in _events(body) if ev == "status"]
+    assert status and "denkt" in str(status[0]["label"])
+    assert order.index("status") < order.index("delta")
+
+
 def test_chat_council_mode_routes_as_team(tmp_path: Path) -> None:
     client = _client(tmp_path)
     with client.stream(

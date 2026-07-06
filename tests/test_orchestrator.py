@@ -319,3 +319,34 @@ async def test_council_skips_failed_agents(tmp_path: Path) -> None:
 
     # only the good draft survives → returned directly (no merge over one draft)
     assert response is not None and response.text == "A"
+
+
+async def test_council_prefers_strong_diverse_panel(tmp_path: Path) -> None:
+    # with a full roster, the team is strong + diverse (Claude + Perplexity + GPT),
+    # not the three cheapest — so cheap flash is not what carries the collaboration.
+    gov = _governor(tmp_path, monthly=1000.0)
+    agents = {
+        "gemini": FakeAgent(
+            "gemini",
+            capabilities={Capability.CHAT},
+            cost=CostPerMTok(0.28, 2.3),
+            bucket=Bucket.GENERAL,
+            reply="g",
+        ),
+        "openai": _paid("openai", "o"),
+        "anthropic": _paid("anthropic", "a"),
+        "perplexity": FakeAgent(
+            "perplexity",
+            capabilities={Capability.RESEARCH, Capability.CHAT},
+            cost=CostPerMTok(2.8, 13.8),
+            bucket=Bucket.GENERAL,
+            reply="p",
+        ),
+    }
+    orch = Orchestrator(agents=agents, router=RuleRouter(), governor=gov)
+
+    decision, response = await orch.handle_council(Task(prompt="was ist der sinn des lebens"))
+
+    assert response is not None
+    assert "anthropic" in decision.model and "perplexity" in decision.model
+    assert "gemini" not in decision.model  # the weakest cheap model steps aside

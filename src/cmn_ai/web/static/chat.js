@@ -65,7 +65,9 @@ function addAssistantShell() {
   chip.style.display = "none";
   const bubble = document.createElement("div");
   bubble.className = "bubble cursor";
-  bubble.textContent = "";
+  bubble.innerHTML =
+    `<span class="think-wait"><span class="tw-label">cmn·ai denkt</span>` +
+    `<span class="tw-dots"><i></i><i></i><i></i></span></span>`;
   wrap.appendChild(chip);
   wrap.appendChild(bubble);
   transcript.appendChild(wrap);
@@ -244,6 +246,9 @@ function handleEvent(block, ctx) {
     ctx.raw = (ctx.raw || "") + payload.text;
     ctx.bubble.textContent = ctx.raw;
     scrollDown();
+  } else if (event === "status") {
+    const label = ctx.bubble.querySelector && ctx.bubble.querySelector(".tw-label");
+    if (label) label.textContent = payload.label;
   } else if (event === "thinking") {
     addThinkingBox(ctx.wrap, ctx.bubble, payload.text);
   } else if (event === "file") {
@@ -257,6 +262,8 @@ function handleEvent(block, ctx) {
   } else if (event === "done" && !payload.blocked) {
     finalizeChip(ctx.chip, payload);
     if (ctx.raw) renderMarkdown(ctx.bubble, ctx.raw);
+    else if (ctx.bubble.querySelector && ctx.bubble.querySelector(".think-wait"))
+      ctx.bubble.textContent = ""; // clear the wait indicator if nothing streamed
     addDownloadButton(ctx.wrap, ctx.bubble, ctx.raw);
   }
 }

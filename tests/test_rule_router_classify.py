@@ -79,3 +79,18 @@ def test_photosynthese_is_not_multimodal() -> None:
     # "photo" must match as a word, not as a substring of Photosynthese
     c = RuleRouter().classify(Task(prompt="Erkläre mir die Photosynthese als Bericht."))
     assert c.capability is Capability.CHAT
+
+
+def test_recherche_keyword_routes_research() -> None:
+    c = RuleRouter().classify(Task(prompt="Recherchiere die aktuellen Strompreise in Deutschland."))
+    assert c.capability is Capability.RESEARCH
+
+
+def test_factual_lookup_routes_research() -> None:
+    c = RuleRouter().classify(Task(prompt="Wie viele Einwohner hat Berlin?"))
+    assert c.capability is Capability.RESEARCH
+
+
+def test_find_out_routes_research() -> None:
+    c = RuleRouter().classify(Task(prompt="Finde heraus, was ein Tesla Model 3 kostet."))
+    assert c.capability is Capability.RESEARCH

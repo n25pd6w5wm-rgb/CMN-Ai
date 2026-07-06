@@ -817,3 +817,13 @@ main.stage.dropzone-active::after {
 
 /* settings: serif section headings, model list */
 .set-models { list-style: none; margin: 0; padding: 0; }
+
+/* Live "thinking" wait indicator (shown while the models compute) */
+.think-wait { display: inline-flex; align-items: center; gap: 9px; color: var(--ink-faint); font-size: 0.92rem; }
+.tw-label { animation: tw-pulse 1.5s ease-in-out infinite; }
+.tw-dots { display: inline-flex; gap: 4px; }
+.tw-dots i { width: 5px; height: 5px; border-radius: 50%; background: var(--accent); display: inline-block; animation: tw-bounce 1.2s infinite ease-in-out both; }
+.tw-dots i:nth-child(2) { animation-delay: 0.16s; }
+.tw-dots i:nth-child(3) { animation-delay: 0.32s; }
+@keyframes tw-bounce { 0%, 80%, 100% { transform: scale(0.5); opacity: 0.35; } 40% { transform: scale(1); opacity: 1; } }
+@keyframes tw-pulse { 0%, 100% { opacity: 0.55; } 50% { opacity: 1; } }
