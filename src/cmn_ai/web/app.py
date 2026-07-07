@@ -664,12 +664,27 @@ def build_app(state: AppState) -> FastAPI:
         async def stream() -> AsyncIterator[str]:
             if cid is not None:
                 yield _sse("conversation", {"id": cid})
-            # A live "working" status the UI shows as a wait indicator while the
-            # models (which we call without upstream streaming) are thinking.
-            yield _sse(
-                "status",
-                {"label": "Das Team berät" if req.agent == "council" else "cmn·ai denkt"},
-            )
+            # A live, route-aware "working" status the UI shows as a wait indicator
+            # while the models (which we call without upstream streaming) are thinking,
+            # so the user sees what is actually happening.
+            try:
+                cls = state.router.classify(task)
+                cap, complexity = cls.capability.value, cls.complexity.value
+            except Exception:
+                cap, complexity = "chat", "low"
+            if req.agent == "council":
+                status_label = "Das Team berät — mehrere KIs antworten, eine führt zusammen"
+            elif cap == "research":
+                status_label = "Recherchiere aktuelle Quellen im Web"
+            elif cap == "code":
+                status_label = "Analysiere den Code"
+            elif cap == "multimodal":
+                status_label = "Sehe mir die Datei an"
+            elif complexity == "high":
+                status_label = "Denke gründlich nach"
+            else:
+                status_label = "cmn·ai denkt"
+            yield _sse("status", {"label": status_label})
             try:
                 if req.agent == "council":
                     decision, response = await state.orchestrator.handle_council(task)

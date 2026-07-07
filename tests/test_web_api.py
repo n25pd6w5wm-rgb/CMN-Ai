@@ -861,6 +861,14 @@ def test_chat_emits_working_status_before_answer(tmp_path: Path) -> None:
     assert order.index("status") < order.index("delta")
 
 
+def test_status_reflects_research_route(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    with client.stream("POST", "/api/chat", json={"prompt": "Wie viele Einwohner hat Berlin?"}) as resp:
+        body = "".join(resp.iter_text())
+    status = [d for ev, d in _events(body) if ev == "status"]
+    assert status and "Recherch" in str(status[0]["label"])
+
+
 def test_chat_council_mode_routes_as_team(tmp_path: Path) -> None:
     client = _client(tmp_path)
     with client.stream(
