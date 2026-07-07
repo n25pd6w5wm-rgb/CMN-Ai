@@ -454,9 +454,12 @@ async function loadModels() {
 
 async function loadAnalytics() {
   const data = await (await fetch("/api/analytics")).json();
+  // Keep the running weekly cost visible in the account row (updates live per turn).
+  const sub = $(".cc-acct-sub");
+  if (sub) sub.textContent = `${eur(data.total_eur || 0)} · 7 Tage`;
   const host = $("#activity");
   if (!data.total_count) {
-    host.innerHTML = `<p class="activity-empty">No requests yet.</p>`;
+    host.innerHTML = `<p class="activity-empty">Noch keine Anfragen.</p>`;
     return;
   }
   const max = Math.max(...data.by_agent.map((a) => a.count), 1);
@@ -527,6 +530,8 @@ async function openSettings() {
   const account = $("#account-section");
   if (me.user && me.user.email) {
     $("#set-email").textContent = me.user.email;
+    const acctName = $("#acct-name");
+    if (acctName) acctName.textContent = me.user.email;
     account.hidden = false;
   } else {
     account.hidden = true;
