@@ -88,7 +88,7 @@ class GeminiAgent:
         payload: dict[str, object] = {
             "contents": contents,
             "generationConfig": {
-                "maxOutputTokens": 8192,
+                "maxOutputTokens": 16384,
                 # Thought summaries: surfaced collapsed in the UI as reasoning.
                 "thinkingConfig": {"includeThoughts": True},
             },

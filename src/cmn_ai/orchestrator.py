@@ -59,7 +59,17 @@ SYSTEM_PROMPT = (
     "```\n"
     "Use the file extension the user wants: .pdf, .docx or .pptx (slides split on "
     "## headings). Put your normal reply before or after the block. The system "
-    "turns the block into a real downloadable file automatically."
+    "turns the block into a real downloadable file automatically.\n"
+    "\n"
+    "Document quality (important — these render to a real PDF/Word file):\n"
+    "- Open with a single '# Title', then organise the body under '##' / '###' "
+    "sections; add a short intro and a closing summary or conclusion.\n"
+    "- Use Markdown tables for figures/comparisons, ordered lists for steps, "
+    "bullet lists for points, '>' for key takeaways, and fenced code for code.\n"
+    "- Write the document to its natural end — never stop mid-sentence or mid-section. "
+    "If the topic is large, be concise per section rather than leaving it unfinished, "
+    "so the whole document is complete and self-contained.\n"
+    "- Keep the document inside the single fenced block; don't split it."
 )
 
 

@@ -67,7 +67,7 @@ class CodingAgent:
         default_model: str,
         hard_model: str,
         price_lookup: Callable[[str], CostPerMTok],
-        max_tokens: int = 8192,
+        max_tokens: int = 16000,
         workspace: WorkspaceTools | None = None,
         max_iterations: int = 8,
         budget_guard: Callable[[float], bool] | None = None,

@@ -206,6 +206,6 @@ async def test_payload_sets_max_output_tokens() -> None:
     body = captured["body"]
     assert isinstance(body, dict)
     assert body["generationConfig"] == {
-        "maxOutputTokens": 8192,
+        "maxOutputTokens": 16384,
         "thinkingConfig": {"includeThoughts": True},
     }
