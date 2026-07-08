@@ -1,0 +1,26 @@
+# Vercel (serverless) profile, selected via CMN_AI_PROFILE=vercel.
+#
+# Same hosted setup as the Render profile — the free local model runs on the
+# Raspberry Pi and is reached over the network via OLLAMA_HOST, accounts +
+# conversations live in Supabase — with one structural difference: Vercel has NO
+# persistent disk and each request may land on a different process, so
+# storage.stateless routes the budget ledger and generated-file downloads to
+# Supabase too (see choose_ledger_backend / choose_file_backend in web/app.py)
+# instead of local SQLite / in-memory. The decision log stays local SQLite on the
+# ephemeral /tmp — losing it on a cold start only affects the admin activity feed,
+# never budget enforcement or file downloads.
+router:
+  strategy: rule
+
+# Public (client-side) Supabase values — login wall + per-user conversations come
+# up without a manual dashboard step. The secret SUPABASE_KEY stays env-only.
+supabase_url: "https://gamrqvueirvkjsksbsar.supabase.co"
+supabase_anon_key: "sb_publishable_FHFlcz7xBBodhhraCGsnkA_gD3vINGe"
+
+storage:
+  db_path: "/tmp/cmn.db"
+  stateless: true # ledger + generated files go to Supabase, not local disk
+
+agents:
+  local:
+    model: "gemma3:1b" # must match the model pulled on the Pi (scripts/install-pi.sh)

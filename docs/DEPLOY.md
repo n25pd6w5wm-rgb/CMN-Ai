@@ -96,6 +96,60 @@ Die ausgegebene `https`-URL trägst du als `OLLAMA_HOST` in Render ein.
 
 ---
 
+## 4a. Alternativ: auf Vercel deployen (statt Render)
+
+Dieselbe App läuft auch **serverless auf Vercel** (Branch `vercel/serverless-deploy`) — als
+Experiment/Alternative zu Render, das der Standard bleibt. Beide teilen sich Code,
+Supabase- und Pi-Setup; sie unterscheiden sich im Host:
+
+| | Render | Vercel |
+|---|---|---|
+| Laufzeit | Docker-Container (`Dockerfile`), dauerhaft | Serverless-Function (`api/index.py`) |
+| Build | `render.yaml` (Blueprint) | `vercel.json`, Python **3.12** (`.python-version`) |
+| Profil | `CMN_AI_PROFILE=render` | `CMN_AI_PROFILE=vercel` |
+| Ledger (Budget) | SQLite auf Disk `/data` | **Supabase** (Tabelle `cmn_ledger`) |
+| Generierte Dateien (PDF/PPTX/…) | In-Memory (ein Prozess, läuft dauerhaft) | **Supabase** (Tabelle `cmn_files`) |
+| Chat-Verlauf | Supabase | Supabase |
+
+**Warum Ledger + Dateien auf Vercel in Supabase liegen:** Serverless hat keinen
+dauerhaften Speicher und jeder Request kann in einem anderen Prozess landen. Die
+SQLite-Ledger hätte sich bei jedem Cold Start unbemerkt zurückgesetzt (Budget-Bremse
+wirkungslos), und ein im Chat erzeugtes PDF wäre beim Download-Klick oft schon weg
+(anderer Prozess). `config/vercel.yaml` setzt deshalb `storage.stateless: true`, was
+`choose_ledger_backend`/`choose_file_backend` (`web/app.py`) auf `SupabaseLedger` /
+`SupabaseFileStore` umschaltet — ohne `SUPABASE_URL`/`SUPABASE_KEY` startet die App mit
+diesem Flag bewusst **nicht** (Ledger) bzw. warnt laut (Dateien), statt die
+Budget-Kontrolle still zu verlieren. Die Tabellen `cmn_ledger`/`cmn_files` sind bereits
+angelegt (RLS aktiv, keine Policies — nur der Service-Key kommt ran, wie bei `api_keys`).
+
+**Schritte:**
+
+1. Auf [vercel.com](https://vercel.com) → **Add New → Project** → das GitHub-Repo wählen,
+   Branch `vercel/serverless-deploy`. Vercel erkennt `vercel.json` automatisch.
+2. Unter **Settings → Environment Variables** die Secrets setzen (dieselben Werte wie bei
+   Render, hier von Hand eintragen): `OLLAMA_HOST`, `VAULT_HOST` (optional),
+   `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_KEY`, `ANTHROPIC_API_KEY` (falls nicht
+   über Supabase). `CMN_AI_PROFILE=vercel` ist schon in `vercel.json` gesetzt.
+3. **Deploy.** Alle Requests (inkl. `/static`, Login, API) laufen über eine Function.
+
+**Ehrliche Grenzen von Vercel** (deshalb bleibt Render der Standard):
+
+- **Zeitlimit pro Request.** `maxDuration: 60` in `vercel.json` (Vercel-Hobby-Plan
+  deckelt hier ohnehin). Team-Modus (mehrere KIs parallel + Zusammenführung) oder sehr
+  lange Antworten großer Modelle können dieses Limit reißen — auf Render (dauerhafter
+  Container) gibt es dieses Limit nicht.
+- **Cold Starts.** Jeder kalte Start baut Router/Agents neu auf und holt API-Keys erneut
+  aus Supabase — spürbar langsamere erste Antwort als bei Render.
+- **Python-Version ist an Vercels eigenen `uv`-Python-Builder gekoppelt** (aktuell
+  Python ≥ 3.12 für dessen internes `vercel-runtime`-Paket) — unabhängig von Render/lokal,
+  die bei Python 3.11 bleiben (`Dockerfile`, Haupt-`.python-version`).
+
+`requirements.txt` liegt noch im Repo (früherer pip-basierter Vercel-Builder), wird vom
+aktuellen `uv`-basierten Python-Builder aber nicht mehr gelesen (der nutzt direkt
+`pyproject.toml`/`uv.lock`) — kann bei Bedarf entfernt werden.
+
+---
+
 ## 4b. Obsidian-Vault (bleibt auf dem Pi)
 
 Deine Notizen liegen **auf dem Pi**, nicht in der Cloud. Der Installer startet dafür einen
@@ -120,12 +174,13 @@ Dann startet cmn-ai wie eine eigenständige App im eigenen Fenster.
 
 ## Was lokal vs. gehostet gilt
 
-| | Lokal (Mac/Pi) | Render (gehostet) |
-|---|---|---|
-| Login | aus (offener Modus), wenn kein Supabase gesetzt | an (Supabase) |
-| Lokales Modell | direkt (`localhost:11434`) | über `OLLAMA_HOST` → Pi |
-| Profil | mac/pi (auto) | `CMN_AI_PROFILE=render` |
-| DB | `~/.cmn-ai/cmn.db` | `/data/cmn.db` (Disk) |
+| | Lokal (Mac/Pi) | Render (gehostet) | Vercel (Experiment) |
+|---|---|---|---|
+| Login | aus (offener Modus), wenn kein Supabase gesetzt | an (Supabase) | an (Supabase) |
+| Lokales Modell | direkt (`localhost:11434`) | über `OLLAMA_HOST` → Pi | über `OLLAMA_HOST` → Pi |
+| Profil | mac/pi (auto) | `CMN_AI_PROFILE=render` | `CMN_AI_PROFILE=vercel` |
+| DB (Konversationen) | `~/.cmn-ai/cmn.db` | Supabase (mit Login) / `/data/cmn.db` | Supabase (mit Login) |
+| Ledger + Dateien | lokale SQLite / In-Memory | `/data/cmn.db` (Disk) / In-Memory | Supabase (`cmn_ledger`/`cmn_files`) |
 
 Ohne Supabase-Env läuft die App weiter im **offenen Einzelnutzer-Modus** (keine Login-Wand) —
 ideal für lokale Entwicklung auf dem Mac.
