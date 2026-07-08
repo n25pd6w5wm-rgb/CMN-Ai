@@ -1,0 +1,21 @@
+# Vercel (serverless frontend) profile, selected via CMN_AI_PROFILE=vercel.
+#
+# Same hosted setup as the Render profile — the free local model runs on the
+# Raspberry Pi and is reached over the network via OLLAMA_HOST, accounts + API
+# keys live in Supabase — with one difference: Vercel has NO persistent disk, so
+# the SQLite DB goes to the ephemeral, writable /tmp. That DB only holds the
+# ledger + decision log; per-user conversations are persisted in Supabase.
+router:
+  strategy: rule
+
+# Public (client-side) Supabase values — login wall + per-user conversations come
+# up without a manual dashboard step. The secret SUPABASE_KEY stays env-only.
+supabase_url: "https://gamrqvueirvkjsksbsar.supabase.co"
+supabase_anon_key: "sb_publishable_FHFlcz7xBBodhhraCGsnkA_gD3vINGe"
+
+storage:
+  db_path: "/tmp/cmn.db"
+
+agents:
+  local:
+    model: "gemma3:1b" # must match the model pulled on the Pi (scripts/install-pi.sh)

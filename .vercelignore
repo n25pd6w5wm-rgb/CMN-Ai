@@ -1,0 +1,11 @@
+# Keep the serverless bundle lean. src/** and config/** are pulled in explicitly
+# via includeFiles in vercel.json; everything below is dev-only and not needed at
+# runtime on Vercel.
+.venv
+tests
+docs
+scripts
+Dockerfile
+.dockerignore
+start.command
+uv.lock

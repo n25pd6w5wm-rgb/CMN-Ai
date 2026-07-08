@@ -11,12 +11,14 @@ Perplexity) are engaged only when a task needs them and the budget allows.
 
 ## Architecture (distributed, for hosted use)
 
-- **Render** hosts this FastAPI app (chat UI + orchestrator + login).
+- **Render** (Docker: `Dockerfile` + `render.yaml`) or **Vercel** (serverless:
+  `api/index.py` + `vercel.json` + `requirements.txt`) hosts this FastAPI app
+  (chat UI + orchestrator + login). Same code, pick either host — see `docs/DEPLOY.md`.
 - **Supabase** is the account backend: login/signup, per-user conversations
   (`cmn_conversations` / `cmn_messages`), and the `api_keys` table.
 - **Raspberry Pi** runs the free local model (Ollama); the app reaches it via
   `OLLAMA_HOST` over an **outbound tunnel** (Cloudflare/Tailscale — no port forwarding).
-- **GitHub** holds the code; Render deploys from it.
+- **GitHub** holds the code; Render/Vercel deploy from it.
 
 Runs in two modes automatically:
 - **Open / local** (no Supabase env): no login, single user, SQLite storage. For Mac dev.

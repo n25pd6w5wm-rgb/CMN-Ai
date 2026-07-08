@@ -105,10 +105,11 @@ cmn-ai runs two ways:
   http-only cookie.
 
 The app is an installable **PWA** (manifest + service worker) — "Add to Dock" in Safari or
-the install icon in Chrome. For the full distributed setup (GitHub → Render hosts the app,
+the install icon in Chrome. For the full distributed setup (GitHub → host runs the app,
 Supabase for accounts/keys, the Raspberry Pi runs the local model via `OLLAMA_HOST`), see
-**[`docs/DEPLOY.md`](docs/DEPLOY.md)**. Container build: `Dockerfile`; Render blueprint:
-`render.yaml`.
+**[`docs/DEPLOY.md`](docs/DEPLOY.md)**. Two hosts are supported out of the box:
+**Render** (container: `Dockerfile`; blueprint: `render.yaml`) and **Vercel** (serverless:
+`api/index.py` + `vercel.json` + `requirements.txt`).
 
 ## Development
 
