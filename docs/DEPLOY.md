@@ -96,6 +96,52 @@ Die ausgegebene `https`-URL trägst du als `OLLAMA_HOST` in Render ein.
 
 ---
 
+## 4a. Alternativ: auf Vercel deployen (statt Render)
+
+Dieselbe App läuft auch **serverless auf Vercel** — als Alternative zu Render. Beide Wege
+teilen sich denselben Code und dasselbe Supabase-/Pi-Setup; sie unterscheiden sich nur im
+Host:
+
+| | Render | Vercel |
+|---|---|---|
+| Laufzeit | Docker-Container (`Dockerfile`), dauerhaft | Serverless-Function (`api/index.py`) |
+| Build | `render.yaml` (Blueprint) | `vercel.json` + `requirements.txt` |
+| Profil | `CMN_AI_PROFILE=render` | `CMN_AI_PROFILE=vercel` |
+| DB (Ledger/Decisions) | Disk `/data/cmn.db` (persistent) | `/tmp/cmn.db` (**ephemer**) |
+| Chat-Verlauf | Supabase | Supabase |
+
+**Schritte:**
+
+1. Auf [vercel.com](https://vercel.com) → **Add New → Project** → dein GitHub-Repo wählen.
+   Vercel erkennt `vercel.json` automatisch (kein Framework-Preset nötig, keine
+   Build-/Output-Einstellungen ändern).
+2. Unter **Settings → Environment Variables** die Secrets setzen (die `sync:false`-Werte
+   aus Render, hier von Hand eintragen):
+   - `OLLAMA_HOST` — die Pi-URL aus Schritt 2
+   - `VAULT_HOST` — die zweite Pi-Tunnel-URL (Obsidian-Vault), optional
+   - `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `SUPABASE_KEY` aus Schritt 3
+   - `ANTHROPIC_API_KEY` (optional, falls nicht über Supabase)
+
+   `CMN_AI_PROFILE=vercel` ist schon in `vercel.json` gesetzt.
+3. **Deploy.** Alle Requests (inkl. `/static`, Login, API) laufen über die eine Function.
+
+**Ehrliche Grenzen von Vercel** (deshalb bleibt Render der Standard):
+
+- **Kein persistenter Speicher.** `/tmp` wird bei Cold Starts geleert, d. h. Ledger und
+  Decision-Log sind flüchtig. Der Chat-Verlauf ist davon **nicht** betroffen (der liegt in
+  Supabase) — aber das rollierende Wochenbudget kann nach einem Cold Start zurückgesetzt
+  wirken. Für verlässliche Budgetzählung über Neustarts hinweg ist Render (mit Disk) besser
+  geeignet, bis Spend in Supabase liegt.
+- **Zeitlimit.** Serverless-Functions haben ein Ausführungslimit (`maxDuration: 60` in
+  `vercel.json`; Hobby-Plan deckelt ggf. niedriger). Sehr lange Antworten paid-großer
+  Modelle können ablaufen.
+
+`requirements.txt` wird aus `pyproject.toml`/`uv.lock` erzeugt (Vercel nutzt pip, nicht uv):
+`uv export --no-dev --no-emit-project --no-hashes --format requirements-txt > requirements.txt`.
+Nach Dependency-Änderungen neu erzeugen und committen.
+
+---
+
 ## 4b. Obsidian-Vault (bleibt auf dem Pi)
 
 Deine Notizen liegen **auf dem Pi**, nicht in der Cloud. Der Installer startet dafür einen

@@ -20,6 +20,9 @@ dist/
 .env.*
 !.env.example
 
+# Vercel (local link/build dir; the committed deploy config is vercel.json)
+.vercel/
+
 # OS
 .DS_Store
 
