@@ -127,6 +127,24 @@ Pi is READY. The named tunnel runs as a service and survives reboots.
   • Local model in your cmn-ai config must be: $MODEL
   • Your notes live in $HOME/.cmn-ai/vault and never leave the Pi.
 EOF
+elif command -v tailscale >/dev/null 2>&1 || [ -n "${CMN_AI_SKIP_TUNNEL:-}" ]; then
+  # No Cloudflare token, but Tailscale is installed (or the user asked to skip the
+  # auto-tunnel). Do NOT block on a quick tunnel — the stable, no-domain path is
+  # Tailscale Funnel via start-pi.sh. Hand off cleanly instead of hijacking the shell.
+  cat <<EOF
+
+Install done. Ollama serves "$MODEL" on http://0.0.0.0:11434 (no ports opened).
+
+No Cloudflare token given — using the stable, no-domain path (Tailscale Funnel).
+Bring the tunnels up (feste URLs, reboot-fest) and print the Render values with:
+
+    bash ~/cmn-ai/scripts/start-pi.sh
+
+If Tailscale isn't set up yet:
+    curl -fsSL https://tailscale.com/install.sh | sh
+    sudo tailscale up
+Your notes live in $HOME/.cmn-ai/vault and never leave the Pi.
+EOF
 else
   cat <<EOF
 

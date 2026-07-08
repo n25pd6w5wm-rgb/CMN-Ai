@@ -68,15 +68,44 @@ EOF
 # funnel config persists in the daemon, so it survives reboots.
 if command -v tailscale >/dev/null 2>&1 && tailscale status >/dev/null 2>&1; then
   say "2/3  Tailscale Funnel einrichten (feste URLs, reboot-fest)"
-  sudo tailscale funnel --bg 11434
-  sudo tailscale funnel --bg --https=8443 11435
+
+  # Ollama muss lokal antworten, bevor wir es nach außen freigeben — sonst zeigt der
+  # Funnel nur einen toten Port und Render bekommt Timeouts.
+  if ! curl -fsS http://localhost:11434/api/tags >/dev/null 2>&1; then
+    echo "    ⚠ Ollama antwortet nicht auf http://localhost:11434."
+    echo "      Erst starten:  sudo systemctl start ollama"
+    echo "      (oder komplett einrichten: bash ~/cmn-ai/scripts/install-pi.sh)"
+    exit 1
+  fi
+
+  # Funnel setzen. Häufigster Stolperstein: Funnel ist im Tailnet noch nicht
+  # freigegeben — dann bricht 'set -e' sonst kommentarlos ab. Fehler abfangen und
+  # den genauen Freigabe-Schritt zeigen statt den Nutzer im Dunkeln zu lassen.
+  if ! sudo tailscale funnel --bg 11434 2>/tmp/cmn-funnel.err; then
+    echo ""
+    echo "    ❌ Funnel für Ollama (:11434) ließ sich nicht setzen. Meldung:"
+    sed 's/^/       /' /tmp/cmn-funnel.err 2>/dev/null || true
+    echo ""
+    echo "    Fast immer: Funnel im Tailnet noch nicht aktiviert. Einmalig freigeben:"
+    echo "        https://login.tailscale.com/admin/settings/features   → 'Funnel' aktivieren"
+    echo "    (oder dem Link aus der Meldung oben folgen). Danach dieses Skript neu starten:"
+    echo "        bash ~/cmn-ai/scripts/start-pi.sh"
+    exit 1
+  fi
+  # Vault (:8443) ist optional — nur für die Obsidian-Notizsuche. Fehler nicht fatal.
+  sudo tailscale funnel --bg --https=8443 11435 2>/dev/null ||
+    echo "    (Vault-Funnel :8443 nicht gesetzt — optional, nur für Notizen nötig.)"
+
   HOST_DNS=$(tailscale status --json | python3 -c "import json,sys; print(json.load(sys.stdin)['Self']['DNSName'].rstrip('.'))")
   say "3/3  Fertig — diese Werte in Render eintragen (Environment):"
   echo "    OLLAMA_HOST = https://$HOST_DNS"
   echo "    VAULT_HOST  = https://$HOST_DNS:8443"
   echo ""
   echo "    Diese URLs bleiben für immer gleich — einmal eintragen reicht."
-  echo "    (Falls ein Hinweis kommt, Funnel zu aktivieren: dem Link folgen, einmalig.)"
+  echo "    Prüfen:  tailscale funnel status"
+  echo ""
+  echo "    ⚠ Sicherheit: Funnel macht den Endpunkt ÖFFENTLICH erreichbar und Ollama"
+  echo "      hat keine eigene Authentifizierung — teile die URL also nicht öffentlich."
   exit 0
 fi
 

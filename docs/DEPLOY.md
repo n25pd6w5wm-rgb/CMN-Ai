@@ -139,6 +139,11 @@ ideal für lokale Entwicklung auf dem Mac.
    bekommt Ollama `https://<pi>.<tailnet>.ts.net` (Port 443) und der Vault `:8443` —
    dauerhafte URLs, einmal in Render eintragen. Voraussetzung auf dem Pi:
    `curl -fsSL https://tailscale.com/install.sh | sh && sudo tailscale up`.
+   Reihenfolge: `install-pi.sh` → Tailscale einrichten → `start-pi.sh`. Beim ersten
+   Mal muss **Funnel im Tailnet freigegeben** sein
+   (`https://login.tailscale.com/admin/settings/features` → „Funnel"); `start-pi.sh`
+   nennt den Schritt sonst konkret. ⚠ Funnel macht den Endpunkt öffentlich erreichbar
+   und Ollama hat keine eigene Auth — die URL nicht öffentlich teilen.
 2. **Cloudflare Named Tunnel** (nur mit eigener Domain im Cloudflare-Konto):
    Tokens nach `~/.config/cmn-ai/cf-tunnels.env` (CF_TOKEN_OLLAMA / CF_TOKEN_VAULT)
    oder einmal `cloudflared tunnel login`.
