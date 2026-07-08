@@ -320,6 +320,12 @@ def build_app(state: AppState) -> FastAPI:
 
     @app.post("/api/auth/signup")
     async def auth_signup(req: AuthRequest, request: Request, response: Response) -> dict[str, Any]:
+        # Registration is closed by default so only existing accounts can spend the
+        # configured API budget. Re-open it by setting CMN_ALLOW_SIGNUPS=1.
+        if os.environ.get("CMN_ALLOW_SIGNUPS") != "1":
+            raise HTTPException(
+                403, "Registrierung ist geschlossen — nur bestehende Konten haben Zugang."
+            )
         if state.auth is None:
             raise HTTPException(400, "authentication is not configured")
         try:

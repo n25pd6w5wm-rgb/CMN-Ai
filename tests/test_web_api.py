@@ -6,6 +6,7 @@ import json
 from datetime import UTC, datetime
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 
 from cmn_ai.budget.governor import BudgetGovernor
@@ -382,7 +383,10 @@ def test_bad_login_is_401(tmp_path: Path) -> None:
     assert "Invalid login" in r.json()["detail"]
 
 
-def test_conversations_are_isolated_per_user(tmp_path: Path) -> None:
+def test_conversations_are_isolated_per_user(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setenv("CMN_ALLOW_SIGNUPS", "1")  # this test exercises a fresh sign-up
     client, _ = _auth_client(tmp_path)
     # user A logs in and creates a conversation
     client.post("/api/auth/login", json={"email": "a@b.de", "password": "secret1"})
@@ -392,6 +396,14 @@ def test_conversations_are_isolated_per_user(tmp_path: Path) -> None:
     client.post("/api/auth/logout")
     client.post("/api/auth/signup", json={"email": "b@b.de", "password": "secret2"})
     assert client.get("/api/conversations").json()["conversations"] == []
+
+
+def test_signup_is_closed_by_default(tmp_path: Path) -> None:
+    # registration is locked so strangers can't create accounts and spend the budget
+    client, _ = _auth_client(tmp_path)
+    r = client.post("/api/auth/signup", json={"email": "stranger@x.de", "password": "secret9"})
+    assert r.status_code == 403
+    assert "geschlossen" in r.json()["detail"]
 
 
 def test_welcome_landing_is_public(tmp_path: Path) -> None:
@@ -863,7 +875,9 @@ def test_chat_emits_working_status_before_answer(tmp_path: Path) -> None:
 
 def test_status_reflects_research_route(tmp_path: Path) -> None:
     client = _client(tmp_path)
-    with client.stream("POST", "/api/chat", json={"prompt": "Wie viele Einwohner hat Berlin?"}) as resp:
+    with client.stream(
+        "POST", "/api/chat", json={"prompt": "Wie viele Einwohner hat Berlin?"}
+    ) as resp:
         body = "".join(resp.iter_text())
     status = [d for ev, d in _events(body) if ev == "status"]
     assert status and "Recherch" in str(status[0]["label"])
