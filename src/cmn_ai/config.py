@@ -82,6 +82,10 @@ class StorageSettings(BaseModel):
     """Where the SQLite database lives (conversations, ledger, decision logs)."""
 
     db_path: str = "~/.cmn-ai/cmn.db"
+    # True only on serverless hosts (Vercel) with no persistent disk between
+    # invocations: the budget ledger and generated-file store move to Supabase
+    # instead of local SQLite / in-memory, so they survive across cold starts.
+    stateless: bool = False
 
     @property
     def resolved_path(self) -> Path:

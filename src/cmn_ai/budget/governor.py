@@ -13,7 +13,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from cmn_ai.budget.ledger import Ledger
+from cmn_ai.budget.ledger import LedgerBackend
 from cmn_ai.config import BudgetSettings
 from cmn_ai.core import Bucket, Usage
 
@@ -48,7 +48,7 @@ class BudgetGovernor:
         self,
         *,
         settings: BudgetSettings,
-        ledger: Ledger,
+        ledger: LedgerBackend,
         now: Callable[[], datetime] = _utc_now,
     ) -> None:
         self._settings = settings

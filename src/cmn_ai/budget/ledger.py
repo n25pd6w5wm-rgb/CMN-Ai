@@ -12,8 +12,20 @@ import sqlite3
 import threading
 from datetime import datetime
 from pathlib import Path
+from typing import Protocol, runtime_checkable
 
 from cmn_ai.core import Bucket, Usage
+
+
+@runtime_checkable
+class LedgerBackend(Protocol):
+    """Interface both the SQLite and Supabase ledgers satisfy."""
+
+    def record(
+        self, *, bucket: Bucket, agent: str, model: str, usage: Usage, eur: float, at: datetime
+    ) -> None: ...
+    def spent_since(self, bucket: Bucket, since: datetime) -> float: ...
+
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS spend (
