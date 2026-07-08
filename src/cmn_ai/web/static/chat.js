@@ -22,27 +22,91 @@ function clearWelcome() {
 }
 
 // ---------- message rendering ----------
-function renderMarkdown(bubble, text) {
+// Render Markdown into a bubble. During streaming we call this in "live" mode
+// (cheap: just parse + sanitize, no syntax highlight / mermaid / copy buttons);
+// once the answer is complete we call it once in full mode for the polished result.
+function renderMarkdown(bubble, text, live = false) {
   if (window.marked && window.DOMPurify) {
     bubble.classList.add("md");
     bubble.innerHTML = DOMPurify.sanitize(marked.parse(text, { breaks: true }));
-    for (const pre of bubble.querySelectorAll("pre")) {
-      const btn = document.createElement("button");
-      btn.type = "button";
-      btn.className = "copy-btn";
-      btn.textContent = "kopieren";
-      btn.addEventListener("click", async () => {
-        try {
-          await navigator.clipboard.writeText(pre.querySelector("code")?.innerText ?? pre.innerText);
-          btn.textContent = "kopiert ✓";
-          setTimeout(() => (btn.textContent = "kopieren"), 1500);
-        } catch (e) {}
-      });
-      pre.appendChild(btn);
-    }
+    if (!live) enhanceRendered(bubble);
   } else {
     bubble.textContent = text;
   }
+}
+
+// Polish a freshly rendered bubble: highlight code, draw Mermaid diagrams, and add
+// a per-code-block copy button. Each step guards on its optional library so a
+// blocked CDN never breaks the answer.
+function enhanceRendered(bubble) {
+  if (window.hljs) {
+    for (const code of bubble.querySelectorAll("pre code")) {
+      if (code.classList.contains("language-mermaid")) continue;
+      try {
+        window.hljs.highlightElement(code);
+      } catch (e) {}
+    }
+  }
+  renderMermaid(bubble);
+  for (const pre of bubble.querySelectorAll("pre")) {
+    if (pre.dataset.copyReady || pre.querySelector("code.language-mermaid")) continue;
+    pre.dataset.copyReady = "1";
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "copy-btn";
+    btn.textContent = "kopieren";
+    btn.addEventListener("click", async () => {
+      try {
+        await navigator.clipboard.writeText(pre.querySelector("code")?.innerText ?? pre.innerText);
+        btn.textContent = "kopiert ✓";
+        setTimeout(() => (btn.textContent = "kopieren"), 1500);
+      } catch (e) {}
+    });
+    pre.appendChild(btn);
+  }
+}
+
+let _mermaidReady = false;
+function renderMermaid(root) {
+  if (!window.mermaid) return;
+  const codes = [...root.querySelectorAll("pre code.language-mermaid")];
+  if (!codes.length) return;
+  if (!_mermaidReady) {
+    try {
+      window.mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: "neutral" });
+    } catch (e) {}
+    _mermaidReady = true;
+  }
+  const nodes = [];
+  for (const code of codes) {
+    const pre = code.closest("pre");
+    const div = document.createElement("div");
+    div.className = "mermaid";
+    div.textContent = code.textContent;
+    pre.replaceWith(div);
+    nodes.push(div);
+  }
+  try {
+    window.mermaid.run({ nodes });
+  } catch (e) {}
+}
+
+// Copy the whole answer as plain text/markdown. Shared by live answers + history.
+function copyAnswerButton(text) {
+  const btn = document.createElement("button");
+  btn.type = "button";
+  btn.className = "dl-btn dl-copy";
+  btn.title = "Antwort kopieren";
+  btn.textContent = "⎘ kopieren";
+  btn.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      const prev = btn.textContent;
+      btn.textContent = "kopiert ✓";
+      setTimeout(() => (btn.textContent = prev), 1500);
+    } catch (e) {}
+  });
+  return btn;
 }
 
 function addUserMessage(text) {
@@ -115,6 +179,7 @@ function addStoredAssistant(msg) {
   renderMarkdown(bubble, msg.content);
   wrap.appendChild(bubble);
   transcript.appendChild(wrap);
+  addDownloadButton(wrap, bubble, msg.content);
 }
 
 function renderBlocked(wrap, bubble, info) {
@@ -178,6 +243,15 @@ async function onFilesPicked(list) {
   renderAttachChips();
 }
 
+// Translate the composer's single dropdown into the {agent, mode} the API expects:
+// "Auto · sparsam" → auto + spar, "Auto · Power-Team" → auto + power, "Team (immer)"
+// → manual council, a specific agent name → that agent.
+function selectedRoute() {
+  const sel = $("#model-select").value;
+  if (sel === "auto-power") return { agent: null, mode: "power" };
+  return { agent: sel || null, mode: "spar" };
+}
+
 // ---------- streaming a turn ----------
 async function sendMessage(text) {
   const sentFiles = pendingFiles.map((f) => f.name);
@@ -192,7 +266,7 @@ async function sendMessage(text) {
       body: JSON.stringify({
         prompt: text,
         conversation_id: currentConversationId,
-        agent: $("#model-select").value || null,
+        ...selectedRoute(),
         attachments: pendingFiles.length ? pendingFiles : null,
       }),
     });
@@ -244,7 +318,14 @@ function handleEvent(block, ctx) {
     renderChip(ctx.chip, payload);
   } else if (event === "delta") {
     ctx.raw = (ctx.raw || "") + payload.text;
-    ctx.bubble.textContent = ctx.raw;
+    // Render Markdown live, but throttled — parsing on every word is wasteful and
+    // syntax-highlighting mid-stream flickers, so full polish waits for "done".
+    const now = performance.now();
+    if (!ctx.lastRender || now - ctx.lastRender > 120) {
+      renderMarkdown(ctx.bubble, ctx.raw, true);
+      ctx.bubble.classList.add("cursor");
+      ctx.lastRender = now;
+    }
     scrollDown();
   } else if (event === "status") {
     const label = ctx.bubble.querySelector && ctx.bubble.querySelector(".tw-label");
@@ -298,6 +379,7 @@ function addDownloadButton(wrap, bubble, raw) {
   if (!text) return;
   const row = document.createElement("div");
   row.className = "dl-row";
+  row.appendChild(copyAnswerButton(text));
   const mk = (label, handler) => {
     const btn = document.createElement("button");
     btn.type = "button";
@@ -439,8 +521,9 @@ async function loadModels() {
   if (select) {
     const chosen = select.value;
     select.innerHTML =
-      `<option value="">Auto (Dirigent)</option>` +
-      `<option value="council">Team (mehrere KIs)</option>`;
+      `<option value="">Auto · sparsam</option>` +
+      `<option value="auto-power">Auto · Power-Team</option>` +
+      `<option value="council">Team (immer)</option>`;
     for (const m of data.models) {
       if (!m.active) continue;
       const opt = document.createElement("option");
@@ -635,6 +718,17 @@ promptEl.addEventListener("paste", async (e) => {
 });
 $("#raise-btn").addEventListener("click", raiseBudget);
 $("#new-chat").addEventListener("click", newChat);
+(() => {
+  const shareBtn = $("#share-btn");
+  if (!shareBtn) return;
+  shareBtn.addEventListener("click", async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      shareBtn.classList.add("copied");
+      setTimeout(() => shareBtn.classList.remove("copied"), 1200);
+    } catch (e) {}
+  });
+})();
 $("#settings-btn").addEventListener("click", openSettings);
 $("#settings-close").addEventListener("click", closeSettings);
 $("#settings-overlay").addEventListener("click", (e) => {

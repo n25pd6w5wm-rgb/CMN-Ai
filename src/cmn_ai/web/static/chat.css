@@ -706,6 +706,32 @@ html, body {
 .bubble.md pre:hover .copy-btn { opacity: 1; }
 .copy-btn:hover { color: var(--ink); }
 
+/* Syntax highlighting (highlight.js) — coloured with the design tokens so code
+   looks native in both light and dark themes rather than importing a CDN theme. */
+.bubble.md pre code.hljs { display: block; background: none; padding: 0; color: var(--ink); }
+.hljs-comment, .hljs-quote { color: var(--ink-faint); font-style: italic; }
+.hljs-keyword, .hljs-selector-tag, .hljs-built_in, .hljs-name, .hljs-tag { color: var(--accent); }
+.hljs-string, .hljs-title, .hljs-section, .hljs-attr, .hljs-attribute, .hljs-literal,
+.hljs-template-tag, .hljs-template-variable, .hljs-type, .hljs-addition, .hljs-regexp {
+  color: #2a9d5c;
+}
+.hljs-number, .hljs-symbol, .hljs-bullet, .hljs-link, .hljs-meta, .hljs-selector-id,
+.hljs-selector-class, .hljs-title.class_ { color: #c2701a; }
+.hljs-deletion { color: #c0392b; }
+.hljs-emphasis { font-style: italic; }
+.hljs-strong { font-weight: 700; }
+
+/* Mermaid diagrams rendered inline in an answer */
+.bubble.md .mermaid {
+  margin: 12px 0; padding: 12px; text-align: center; overflow-x: auto;
+  background: var(--bg); border: 1px solid var(--line); border-radius: 12px;
+}
+.bubble.md .mermaid svg { max-width: 100%; height: auto; }
+
+/* Copy-whole-answer button (lives in the download row) */
+.dl-btn.dl-copy { color: var(--accent); }
+#share-btn.copied { color: var(--accent); }
+
 /* Drag & drop target highlight */
 main.stage { position: relative; }
 main.stage.dropzone-active::after {

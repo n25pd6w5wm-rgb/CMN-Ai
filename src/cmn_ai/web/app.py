@@ -32,16 +32,19 @@ from pydantic import BaseModel
 
 from cmn_ai.agents.base import Agent
 from cmn_ai.budget.governor import BudgetGovernor
+from cmn_ai.budget.ledger import LedgerBackend
+from cmn_ai.budget.supabase_ledger import SupabaseLedger
 from cmn_ai.config import Settings, load_settings
 from cmn_ai.core import Message, RouteDecision, Task
-from cmn_ai.orchestrator import Orchestrator
+from cmn_ai.orchestrator import Orchestrator, wants_council
 from cmn_ai.router.interface import Router
 from cmn_ai.storage.conversations import ConversationBackend, ConversationStore
 from cmn_ai.storage.decisions import DecisionLog
 from cmn_ai.storage.supabase_store import SupabaseConversationStore
 from cmn_ai.web.attachments import Attachment, is_image, mime_for, render_attachments
 from cmn_ai.web.auth import AuthError, SupabaseAuth, build_auth_from_env
-from cmn_ai.web.deliverables import FileStore, extract_deliverables
+from cmn_ai.web.deliverables import FileBackend, FileStore, extract_deliverables
+from cmn_ai.web.supabase_files import SupabaseFileStore
 from cmn_ai.web.vault_client import VaultClient, build_vault_client_from_env
 
 SESSION_COOKIE = "cmn_session"
@@ -109,13 +112,14 @@ class AppState:
     conversations: ConversationBackend | None = None
     auth: SupabaseAuth | None = None
     vault: VaultClient | None = None
-    files: FileStore = field(default_factory=FileStore)
+    files: FileBackend = field(default_factory=FileStore)
 
 
 class ChatRequest(BaseModel):
     prompt: str
     conversation_id: str | None = None
     agent: str | None = None  # optional user-selected agent/model (else the router decides)
+    mode: str = "spar"  # auto-team eagerness: "spar" (budget-conscious) | "power" (team fast)
     attachments: list[Attachment] | None = None  # uploaded files (base64), max 8
 
 
@@ -127,6 +131,7 @@ class ExportRequest(BaseModel):
     content: str
     format: Literal["pdf", "pptx", "docx"]
     filename: str | None = None  # without extension
+    theme: str | None = None  # optional visual theme (report | modern | elegant | deck)
 
 
 class RaiseRequest(BaseModel):
@@ -184,15 +189,15 @@ _MEDIA_TYPES = {
 }
 
 
-def _render_document(fmt: str, content: str) -> bytes:
+def _render_document(fmt: str, content: str, theme: str = "") -> bytes:
     from cmn_ai.web.export import to_docx, to_pdf, to_pptx
 
     if fmt == "pdf":
-        return to_pdf(content)
+        return to_pdf(content, theme=theme)
     if fmt == "pptx":
-        return to_pptx(content)
+        return to_pptx(content, theme=theme)
     if fmt == "docx":
-        return to_docx(content)
+        return to_docx(content, theme=theme)
     return content.encode("utf-8")  # markdown / plain-text fallback
 
 
@@ -580,7 +585,7 @@ def build_app(state: AppState) -> FastAPI:
     @app.post("/api/export")
     async def export_document(req: ExportRequest) -> Response:
         name = (req.filename or "cmn-ai-antwort").strip() or "cmn-ai-antwort"
-        payload = _render_document(req.format, req.content)
+        payload = _render_document(req.format, req.content, req.theme or "")
         return Response(
             content=payload,
             media_type=_MEDIA_TYPES[req.format],
@@ -673,12 +678,17 @@ def build_app(state: AppState) -> FastAPI:
             # A live, route-aware "working" status the UI shows as a wait indicator
             # while the models (which we call without upstream streaming) are thinking,
             # so the user sees what is actually happening.
+            # The conductor may convene a team on its own when the user is on "Auto"
+            # (no explicit agent). Manual "council" always convenes; a picked agent never.
+            convene_council = req.agent == "council"
             try:
                 cls = state.router.classify(task)
                 cap, complexity = cls.capability.value, cls.complexity.value
+                if not req.agent:
+                    convene_council = wants_council(req.prompt, cls, req.mode)
             except Exception:
                 cap, complexity = "chat", "low"
-            if req.agent == "council":
+            if convene_council:
                 status_label = "Das Team berät — mehrere KIs antworten, eine führt zusammen"
             elif cap == "research":
                 status_label = "Recherchiere aktuelle Quellen im Web"
@@ -692,8 +702,12 @@ def build_app(state: AppState) -> FastAPI:
                 status_label = "cmn·ai denkt"
             yield _sse("status", {"label": status_label})
             try:
-                if req.agent == "council":
-                    decision, response = await state.orchestrator.handle_council(task)
+                if convene_council:
+                    # Manual team runs at full strength; auto-team follows the chosen mode.
+                    council_mode = "power" if req.agent == "council" else req.mode
+                    decision, response = await state.orchestrator.handle_council(
+                        task, mode=council_mode
+                    )
                 else:
                     decision, response = await state.orchestrator.handle(
                         task, agent_override=req.agent
@@ -728,7 +742,9 @@ def build_app(state: AppState) -> FastAPI:
                 clean_text, deliverables = answer_text, []
             for deliverable in deliverables:
                 try:
-                    data = _render_document(deliverable.format, deliverable.content)
+                    data = _render_document(
+                        deliverable.format, deliverable.content, deliverable.theme
+                    )
                     fid = state.files.put(deliverable.name, deliverable.media_type, data)
                     file_events.append({"id": fid, "name": deliverable.name})
                 except Exception as exc:
@@ -796,17 +812,65 @@ def choose_conversation_backend(
     return ConversationStore(db_path)
 
 
+def choose_ledger_backend(
+    db_path: Path, *, stateless: bool, supabase_url: str | None, supabase_key: str | None
+) -> LedgerBackend:
+    """Pick where spend history lives.
+
+    ``stateless`` hosts (Vercel: no persistent disk between invocations) need the
+    ledger in Supabase, or the budget brake silently resets every cold start. Without
+    Supabase creds there is no durable option — fail loudly rather than pretend the
+    budget is enforced when it silently isn't.
+    """
+    if stateless:
+        if supabase_url and supabase_key:
+            return SupabaseLedger(supabase_url, supabase_key)
+        raise RuntimeError(
+            "storage.stateless=true needs SUPABASE_URL + SUPABASE_KEY for a durable "
+            "ledger — a local SQLite ledger would silently reset every cold start."
+        )
+    from cmn_ai.budget.ledger import Ledger
+
+    return Ledger(db_path)
+
+
+def choose_file_backend(
+    *, stateless: bool, supabase_url: str | None, supabase_key: str | None
+) -> FileBackend:
+    """Pick where model-authored generated files (PDF/DOCX/PPTX) live.
+
+    ``stateless`` hosts run each request in its own process, so the in-memory
+    ``FileStore`` breaks the download flow the moment the follow-up GET lands on a
+    different instance — Supabase keeps the bytes reachable across instances.
+    """
+    if stateless:
+        if supabase_url and supabase_key:
+            return SupabaseFileStore(supabase_url, supabase_key)
+        print(
+            "[cmn-ai] storage.stateless=true but SUPABASE_URL/KEY missing — generated "
+            "file downloads will fail across instances. Using in-memory store anyway."
+        )
+    return FileStore()
+
+
 def build_state_from_settings(settings: Settings | None = None) -> AppState:
     """Wire real agents, router, governor and orchestrator from configuration."""
     from cmn_ai.agents.factory import build_agents
-    from cmn_ai.budget.ledger import Ledger
     from cmn_ai.keystore import bootstrap_secrets
 
     settings = settings or load_settings()
     # Pull model API keys from Supabase (creds via local .env) and enable keyed agents.
     bootstrap_secrets(settings)
     db_path = settings.storage.resolved_path
-    governor = BudgetGovernor(settings=settings.budget, ledger=Ledger(db_path))
+    supabase_url = os.environ.get("SUPABASE_URL")
+    supabase_key = os.environ.get("SUPABASE_KEY")
+    ledger = choose_ledger_backend(
+        db_path,
+        stateless=settings.storage.stateless,
+        supabase_url=supabase_url,
+        supabase_key=supabase_key,
+    )
+    governor = BudgetGovernor(settings=settings.budget, ledger=ledger)
     agents = build_agents(settings, governor)
     router = build_router(settings)
     decision_log = DecisionLog(db_path)
@@ -815,10 +879,10 @@ def build_state_from_settings(settings: Settings | None = None) -> AppState:
         fallback_url=settings.supabase_url, fallback_anon=settings.supabase_anon_key
     )
     conversations = choose_conversation_backend(
-        db_path,
-        supabase_url=os.environ.get("SUPABASE_URL"),
-        supabase_key=os.environ.get("SUPABASE_KEY"),
-        auth=auth,
+        db_path, supabase_url=supabase_url, supabase_key=supabase_key, auth=auth
+    )
+    files = choose_file_backend(
+        stateless=settings.storage.stateless, supabase_url=supabase_url, supabase_key=supabase_key
     )
     orchestrator = Orchestrator(
         agents=agents, router=router, governor=governor, decision_log=decision_log
@@ -833,6 +897,7 @@ def build_state_from_settings(settings: Settings | None = None) -> AppState:
         conversations=conversations,
         auth=auth,
         vault=build_vault_client_from_env(),
+        files=files,
     )
 
 

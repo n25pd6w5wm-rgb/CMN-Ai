@@ -3,10 +3,13 @@
 The parser understands the Markdown the models emit — headings, ordered and
 unordered (nestable) lists, fenced code, pipe tables, blockquotes, horizontal
 rules, and inline **bold** / *italic* / ``code`` / [links] — and each renderer
-turns it into a properly typeset document: accent-coloured heading hierarchy,
-shaded table headers, code blocks, blockquotes and page numbers in the PDF;
-native Word styles (Title, Headings, numbered/bulleted lists, Quote, shaded
-code, grid tables) in the DOCX.
+turns it into a properly typeset document.
+
+Several visual **themes** are available so generated documents don't all look the
+same: ``report`` (formal blue, the default), ``modern`` (teal, with a cover page),
+``elegant`` (restrained terracotta, cover page) and ``deck`` (indigo, the default
+for presentations). The model can request one via the ``cmn:file`` fence; otherwise
+a sensible per-format default is used.
 """
 
 from __future__ import annotations
@@ -15,16 +18,98 @@ import io
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
 
 _FONT_DIR = Path(__file__).resolve().parent / "fonts"
 
-# Document palette (documents are always on white, independent of the app theme).
-_ACCENT = (43, 127, 196)
-_INK = (28, 28, 30)
-_MUTED = (110, 108, 104)
-_CODE_BG = (244, 245, 247)
-_HEAD_BG = (237, 242, 248)
-_RULE = (222, 222, 220)
+RGB = tuple[int, int, int]
+
+
+# ---------- themes (documents are always on white, independent of the app theme) ----------
+
+
+@dataclass(frozen=True)
+class Theme:
+    """A visual style shared across the PDF, DOCX and PPTX renderers."""
+
+    name: str
+    accent: RGB  # headings, bars, rules, links
+    accent_dark: RGB  # cover band / darker accent for contrast
+    head_bg: RGB  # table-header + soft fills
+    ink: RGB  # body text
+    muted: RGB  # captions, footers, quotes
+    code_bg: RGB  # code block background
+    rule: RGB  # horizontal rules / hairlines
+    cover: bool = False  # render a dedicated cover page (PDF) / title slide accent (PPTX)
+    title_size: float = 24.0  # cover / document title size
+    heading_accent: bool = True  # colour H1/H2 in the accent (False = restrained, ink headings)
+
+
+THEMES: dict[str, Theme] = {
+    "report": Theme(
+        name="report",
+        accent=(43, 127, 196),
+        accent_dark=(28, 86, 140),
+        head_bg=(237, 242, 248),
+        ink=(28, 28, 30),
+        muted=(110, 108, 104),
+        code_bg=(244, 245, 247),
+        rule=(222, 222, 220),
+        cover=False,
+        title_size=24.0,
+        heading_accent=True,
+    ),
+    "modern": Theme(
+        name="modern",
+        accent=(13, 148, 136),
+        accent_dark=(11, 94, 90),
+        head_bg=(224, 242, 239),
+        ink=(23, 37, 42),
+        muted=(90, 110, 110),
+        code_bg=(240, 247, 246),
+        rule=(210, 226, 223),
+        cover=True,
+        title_size=30.0,
+        heading_accent=True,
+    ),
+    "elegant": Theme(
+        name="elegant",
+        accent=(161, 66, 52),
+        accent_dark=(112, 43, 34),
+        head_bg=(245, 236, 232),
+        ink=(38, 34, 32),
+        muted=(120, 105, 98),
+        code_bg=(247, 243, 240),
+        rule=(226, 216, 210),
+        cover=True,
+        title_size=30.0,
+        heading_accent=False,
+    ),
+    "deck": Theme(
+        name="deck",
+        accent=(79, 70, 229),
+        accent_dark=(55, 48, 163),
+        head_bg=(232, 230, 252),
+        ink=(24, 24, 37),
+        muted=(100, 100, 120),
+        code_bg=(243, 243, 250),
+        rule=(220, 218, 240),
+        cover=True,
+        title_size=32.0,
+        heading_accent=True,
+    ),
+}
+
+# When the model doesn't name a theme, pick one that fits the format: documents get
+# the formal report look; slide decks get the presentation-oriented deck theme.
+_DEFAULT_THEME_FOR = {"pdf": "report", "docx": "report", "pptx": "deck"}
+
+
+def resolve_theme(name: str, fmt: str) -> Theme:
+    """Resolve a (possibly empty or unknown) theme name for a format to a Theme."""
+    if name and name in THEMES:
+        return THEMES[name]
+    return THEMES[_DEFAULT_THEME_FOR.get(fmt, "report")]
 
 
 # ---------- inline parsing (bold / italic / code / links) ----------
@@ -183,19 +268,42 @@ def _parse(content: str) -> list[_Block]:
     return blocks
 
 
-# ---------- PDF (fpdf2, vendored DejaVu, page numbers) ----------
+# ---------- PDF (fpdf2, vendored DejaVu, themed, page numbers) ----------
 
 
-def to_pdf(content: str) -> bytes:
+def _pdf_cover(pdf: Any, th: Theme, title: str) -> None:
+    """A dedicated title page: accent band, big title, accent rule, byline."""
+    pdf.add_page()
+    pdf.set_fill_color(*th.accent)
+    pdf.rect(0, 0, pdf.w, 60, style="F")
+    pdf.set_xy(pdf.l_margin, 84)
+    pdf.set_font("DejaVu", "B", th.title_size)
+    pdf.set_text_color(*th.ink)
+    pdf.multi_cell(0, th.title_size * 0.5, title, new_x="LMARGIN", new_y="NEXT")
+    y = pdf.get_y() + 4
+    pdf.set_draw_color(*th.accent)
+    pdf.set_line_width(1.4)
+    pdf.line(pdf.l_margin, y, pdf.l_margin + 55, y)
+    pdf.set_xy(pdf.l_margin, y + 9)
+    pdf.set_font("DejaVu", "", 12)
+    pdf.set_text_color(*th.muted)
+    pdf.cell(0, 8, "erstellt mit cmn·ai")
+
+
+def to_pdf(content: str, *, theme: str = "") -> bytes:
     from fpdf import FPDF
     from fpdf.enums import TableBordersLayout
     from fpdf.fonts import FontFace
 
+    th = resolve_theme(theme, "pdf")
+
     class _PDF(FPDF):
+        muted: RGB = th.muted
+
         def footer(self) -> None:
             self.set_y(-14)
             self.set_font("DejaVu", "", 8)
-            self.set_text_color(*_MUTED)
+            self.set_text_color(*self.muted)
             self.cell(0, 8, f"Seite {self.page_no()}", align="C")
 
     pdf = _PDF()
@@ -209,14 +317,24 @@ def to_pdf(content: str) -> bytes:
     pdf.add_font("DejaVuMono", "", str(_FONT_DIR / "DejaVuSansMono.ttf"))
     pdf.set_margins(20, 18, 20)
     pdf.set_auto_page_break(auto=True, margin=18)
+
+    blocks = _parse(content)
+    title_text = next((b.text for b in blocks if b.kind == "h1"), "")
+    title_done = False
+    if th.cover and title_text:
+        _pdf_cover(pdf, th, _plain(title_text))
+        title_done = True
     pdf.add_page()
 
-    def runs(text: str, size: float, base: str = "", color: tuple[int, int, int] = _INK) -> None:
+    head_color = th.accent if th.heading_accent else th.ink
+
+    def runs(text: str, size: float, base: str = "", color: RGB | None = None) -> None:
+        color = th.ink if color is None else color
         lh = size * 0.52
         for txt, st in _runs(text):
             if "code" in st:
                 pdf.set_font("DejaVuMono", "", size - 1)
-                pdf.set_text_color(*_ACCENT)
+                pdf.set_text_color(*th.accent)
             else:
                 style = base + ("B" if "b" in st else "") + ("I" if "i" in st else "")
                 pdf.set_font("DejaVu", "".join(sorted(style)), size)
@@ -224,14 +342,13 @@ def to_pdf(content: str) -> bytes:
             pdf.write(lh, txt)
         pdf.ln(lh)
 
-    title_done = False
-    for blk in _parse(content):
+    for blk in blocks:
         if blk.kind == "h1" and not title_done:
             title_done = True
             pdf.set_font("DejaVu", "B", 24)
-            pdf.set_text_color(*_INK)
+            pdf.set_text_color(*th.ink)
             pdf.multi_cell(0, 11, _plain(blk.text), new_x="LMARGIN", new_y="NEXT")
-            pdf.set_draw_color(*_ACCENT)
+            pdf.set_draw_color(*th.accent)
             pdf.set_line_width(0.6)
             y = pdf.get_y() + 1
             pdf.line(pdf.l_margin, y, pdf.l_margin + 40, y)
@@ -240,7 +357,7 @@ def to_pdf(content: str) -> bytes:
             size = {"h1": 17.0, "h2": 14.0, "h3": 12.0, "h4": 11.0}[blk.kind]
             pdf.ln(2)
             pdf.set_font("DejaVu", "B", size)
-            pdf.set_text_color(*(_ACCENT if blk.kind in ("h1", "h2") else _INK))
+            pdf.set_text_color(*(head_color if blk.kind in ("h1", "h2") else th.ink))
             pdf.multi_cell(0, size * 0.55, _plain(blk.text), new_x="LMARGIN", new_y="NEXT")
             pdf.ln(1.5)
         elif blk.kind == "para":
@@ -253,7 +370,7 @@ def to_pdf(content: str) -> bytes:
             pdf.set_left_margin(left + 7)
             pdf.set_x(left)
             pdf.set_font("DejaVu", "", 11)
-            pdf.set_text_color(*_ACCENT if blk.kind == "number" else _MUTED)
+            pdf.set_text_color(*(th.accent if blk.kind == "number" else th.muted))
             pdf.write(11 * 0.52, f"{marker} ")
             pdf.set_x(left + 7)
             runs(blk.text, 11)
@@ -263,8 +380,8 @@ def to_pdf(content: str) -> bytes:
             top = pdf.get_y()
             pdf.set_left_margin(26)
             pdf.set_x(26)
-            runs(blk.text, 11, base="I", color=_MUTED)
-            pdf.set_draw_color(*_ACCENT)
+            runs(blk.text, 11, base="I", color=th.muted)
+            pdf.set_draw_color(*th.accent)
             pdf.set_line_width(1.2)
             pdf.line(21, top, 21, pdf.get_y() - 2)
             pdf.set_left_margin(20)
@@ -272,8 +389,8 @@ def to_pdf(content: str) -> bytes:
         elif blk.kind == "code":
             pdf.ln(1)
             pdf.set_font("DejaVuMono", "", 9)
-            pdf.set_text_color(*_INK)
-            pdf.set_fill_color(*_CODE_BG)
+            pdf.set_text_color(*th.ink)
+            pdf.set_fill_color(*th.code_bg)
             pdf.multi_cell(
                 0, 5, blk.text or " ", fill=True, new_x="LMARGIN", new_y="NEXT", padding=3
             )
@@ -281,8 +398,8 @@ def to_pdf(content: str) -> bytes:
         elif blk.kind == "table" and blk.rows:
             pdf.ln(1)
             pdf.set_font("DejaVu", "", 10)
-            pdf.set_text_color(*_INK)
-            head = FontFace(emphasis="BOLD", fill_color=_HEAD_BG, color=_INK)
+            pdf.set_text_color(*th.ink)
+            head = FontFace(emphasis="BOLD", fill_color=th.head_bg, color=th.ink)
             with pdf.table(
                 headings_style=head,
                 borders_layout=TableBordersLayout.HORIZONTAL_LINES,
@@ -297,7 +414,7 @@ def to_pdf(content: str) -> bytes:
             pdf.ln(3)
         elif blk.kind == "hr":
             pdf.ln(2)
-            pdf.set_draw_color(*_RULE)
+            pdf.set_draw_color(*th.rule)
             pdf.set_line_width(0.3)
             y = pdf.get_y()
             pdf.line(pdf.l_margin, y, pdf.w - pdf.r_margin, y)
@@ -306,7 +423,7 @@ def to_pdf(content: str) -> bytes:
     return bytes(pdf.output())
 
 
-# ---------- DOCX (python-docx, native styles) ----------
+# ---------- DOCX (python-docx, native styles, themed accent) ----------
 
 
 def _docx_shade(paragraph: object, fill: str) -> None:
@@ -331,10 +448,15 @@ def _docx_runs(paragraph: object, text: str, *, mono: bool = False) -> None:
             run.font.name = "Consolas"
 
 
-def to_docx(content: str) -> bytes:
+def to_docx(content: str, *, theme: str = "") -> bytes:
     from docx import Document
     from docx.enum.text import WD_ALIGN_PARAGRAPH
     from docx.shared import Pt, RGBColor
+
+    th = resolve_theme(theme, "docx")
+    accent = RGBColor(*th.accent)
+    muted = RGBColor(*th.muted)
+    code_hex = "".join(f"{c:02X}" for c in th.code_bg)
 
     doc = Document()
     normal = doc.styles["Normal"]
@@ -349,8 +471,9 @@ def to_docx(content: str) -> bytes:
         elif blk.kind in ("h1", "h2", "h3", "h4"):
             level = {"h1": 1, "h2": 1, "h3": 2, "h4": 3}[blk.kind]
             h = doc.add_heading(_plain(blk.text), level=level)
-            for run in h.runs:
-                run.font.color.rgb = RGBColor(*_ACCENT)
+            if th.heading_accent:
+                for run in h.runs:
+                    run.font.color.rgb = accent
         elif blk.kind == "para":
             _docx_runs(doc.add_paragraph(), blk.text)
         elif blk.kind == "bullet":
@@ -368,7 +491,7 @@ def to_docx(content: str) -> bytes:
             _docx_runs(para, blk.text)
         elif blk.kind == "code":
             para = doc.add_paragraph()
-            _docx_shade(para, "F4F5F7")
+            _docx_shade(para, code_hex)
             run = para.add_run(blk.text)
             run.font.name = "Consolas"
             run.font.size = Pt(9.5)
@@ -389,7 +512,7 @@ def to_docx(content: str) -> bytes:
         elif blk.kind == "hr":
             sep = doc.add_paragraph()
             sep.alignment = WD_ALIGN_PARAGRAPH.CENTER
-            sep.add_run("• • •").font.color.rgb = RGBColor(*_MUTED)
+            sep.add_run("• • •").font.color.rgb = muted
 
     buf = io.BytesIO()
     doc.save(buf)
@@ -404,49 +527,211 @@ def _safe_list(doc: object, text: str, style: str, fallback: str) -> None:
     _docx_runs(para, text)
 
 
-# ---------- PPTX (python-pptx) ----------
+# ---------- PPTX (python-pptx, themed slides with colour bars + real tables) ----------
 
 
-def to_pptx(content: str) -> bytes:
+def _rgb(color: RGB) -> Any:
+    from pptx.dml.color import RGBColor
+
+    return RGBColor(*color)  # type: ignore[no-untyped-call]
+
+
+_WHITE: RGB = (255, 255, 255)
+
+
+def _pptx_rect(slide: Any, left: Any, top: Any, width: Any, height: Any, color: RGB) -> Any:
+    from pptx.enum.shapes import MSO_SHAPE
+
+    shape = slide.shapes.add_shape(MSO_SHAPE.RECTANGLE, left, top, width, height)
+    shape.fill.solid()
+    shape.fill.fore_color.rgb = _rgb(color)
+    shape.line.fill.background()
+    shape.shadow.inherit = False
+    return shape
+
+
+def _pptx_title_slide(prs: Any, th: Theme, title: str) -> None:
+    from pptx.enum.text import PP_ALIGN
+    from pptx.util import Inches, Pt
+
+    slide = prs.slides.add_slide(prs.slide_layouts[6])  # blank
+    w, h = prs.slide_width, prs.slide_height
+    if th.cover:
+        _pptx_rect(slide, 0, 0, w, h, th.accent)
+        title_color = _rgb(_WHITE)
+        sub_color = _rgb(th.head_bg)
+    else:
+        _pptx_rect(slide, 0, 0, Inches(0.4), h, th.accent)
+        title_color = _rgb(th.ink)
+        sub_color = _rgb(th.muted)
+
+    box = slide.shapes.add_textbox(Inches(1.0), Inches(2.5), w - Inches(2.0), Inches(2.2))
+    tf = box.text_frame
+    tf.word_wrap = True
+    p = tf.paragraphs[0]
+    p.alignment = PP_ALIGN.CENTER
+    run = p.add_run()
+    run.text = title
+    run.font.size = Pt(th.title_size + 8)
+    run.font.bold = True
+    run.font.color.rgb = title_color
+
+    sub = tf.add_paragraph()
+    sub.alignment = PP_ALIGN.CENTER
+    srun = sub.add_run()
+    srun.text = "erstellt mit cmn·ai"
+    srun.font.size = Pt(16)
+    srun.font.color.rgb = sub_color
+
+
+def _pptx_heading_bar(slide: Any, prs: Any, th: Theme, heading: str) -> None:
+    from pptx.enum.text import MSO_ANCHOR
+    from pptx.util import Inches, Pt
+
+    w = prs.slide_width
+    _pptx_rect(slide, 0, 0, w, Inches(1.15), th.accent)
+    box = slide.shapes.add_textbox(Inches(0.6), Inches(0.1), w - Inches(1.2), Inches(0.95))
+    tf = box.text_frame
+    tf.word_wrap = True
+    tf.vertical_anchor = MSO_ANCHOR.MIDDLE
+    p = tf.paragraphs[0]
+    run = p.add_run()
+    run.text = heading
+    run.font.size = Pt(26)
+    run.font.bold = True
+    run.font.color.rgb = _rgb(_WHITE)
+
+
+def _pptx_content_slide(prs: Any, th: Theme, heading: str, blocks: list[_Block]) -> None:
+    from pptx.util import Inches, Pt
+
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    _pptx_heading_bar(slide, prs, th, heading)
+    w, h = prs.slide_width, prs.slide_height
+    box = slide.shapes.add_textbox(Inches(0.7), Inches(1.5), w - Inches(1.4), h - Inches(2.0))
+    tf = box.text_frame
+    tf.word_wrap = True
+    first = True
+
+    def para() -> Any:
+        nonlocal first
+        if first and not tf.paragraphs[0].runs:
+            first = False
+            return tf.paragraphs[0]
+        return tf.add_paragraph()
+
+    ink = _rgb(th.ink)
+    accent = _rgb(th.accent)
+    muted = _rgb(th.muted)
+    for blk in blocks:
+        if blk.kind in ("h3", "h4"):
+            p = para()
+            p.space_before = Pt(6)
+            r = p.add_run()
+            r.text = _plain(blk.text)
+            r.font.size = Pt(20)
+            r.font.bold = True
+            r.font.color.rgb = accent
+        elif blk.kind in ("bullet", "number"):
+            p = para()
+            p.level = min(blk.level + 1, 4)
+            marker = f"{blk.marker}. " if blk.kind == "number" else "• "
+            r = p.add_run()
+            r.text = marker + _plain(blk.text)
+            r.font.size = Pt(18)
+            r.font.color.rgb = ink
+        elif blk.kind == "quote":
+            p = para()
+            r = p.add_run()
+            r.text = _plain(blk.text)
+            r.font.size = Pt(18)
+            r.font.italic = True
+            r.font.color.rgb = muted
+        elif blk.kind == "code":
+            for line in blk.text.splitlines() or [" "]:
+                p = para()
+                r = p.add_run()
+                r.text = line
+                r.font.size = Pt(14)
+                r.font.name = "Consolas"
+                r.font.color.rgb = ink
+        else:  # para
+            p = para()
+            r = p.add_run()
+            r.text = _plain(blk.text)
+            r.font.size = Pt(18)
+            r.font.color.rgb = ink
+
+
+def _pptx_table_slide(prs: Any, th: Theme, heading: str, rows: list[list[str]]) -> None:
+    from pptx.util import Inches, Pt
+
+    slide = prs.slides.add_slide(prs.slide_layouts[6])
+    _pptx_heading_bar(slide, prs, th, heading)
+    w = prs.slide_width
+    n_rows = len(rows)
+    n_cols = max(len(r) for r in rows)
+    left, top = Inches(0.7), Inches(1.6)
+    width, height = w - Inches(1.4), Inches(min(0.5 * n_rows + 0.2, 5.0))
+    table = slide.shapes.add_table(n_rows, n_cols, left, top, width, height).table
+    accent = _rgb(th.accent)
+    ink = _rgb(th.ink)
+    white = _rgb(_WHITE)
+    for r, row_cells in enumerate(rows):
+        for c in range(n_cols):
+            cell = table.cell(r, c)
+            cell.text = _plain(row_cells[c]) if c < len(row_cells) else ""
+            para = cell.text_frame.paragraphs[0]
+            run = para.runs[0] if para.runs else para.add_run()
+            run.font.size = Pt(14)
+            if r == 0:
+                cell.fill.solid()
+                cell.fill.fore_color.rgb = accent
+                run.font.bold = True
+                run.font.color.rgb = white
+            else:
+                run.font.color.rgb = ink
+
+
+def to_pptx(content: str, *, theme: str = "") -> bytes:
     from pptx import Presentation
-    from pptx.util import Pt
+    from pptx.util import Inches
 
+    th = resolve_theme(theme, "pptx")
     prs = Presentation()
-    blocks = _parse(content)
-    title = next((b.text for b in blocks if b.kind == "h1"), "cmn-ai")
-    slide = prs.slides.add_slide(prs.slide_layouts[0])
-    slide.shapes.title.text = _plain(title)
-    if slide.placeholders and len(slide.placeholders) > 1:
-        slide.placeholders[1].text = "erstellt mit cmn·ai"
+    prs.slide_width = Inches(13.333)
+    prs.slide_height = Inches(7.5)
 
-    body = None
+    blocks = _parse(content)
+    title = next((b.text for b in blocks if b.kind == "h1"), "cmn·ai")
+    _pptx_title_slide(prs, th, _plain(title))
+
+    heading = _plain(title)
+    buffer: list[_Block] = []
+    seen_title = False
+
+    def flush() -> None:
+        nonlocal buffer
+        if buffer:
+            _pptx_content_slide(prs, th, heading, buffer)
+            buffer = []
+
     for block in blocks:
         if block.kind in ("h1", "h2"):
-            if block.text == title and body is None:
+            if not seen_title and block.text == title:
+                seen_title = True
                 continue
-            slide = prs.slides.add_slide(prs.slide_layouts[1])
-            slide.shapes.title.text = _plain(block.text)
-            body = slide.placeholders[1].text_frame
-            body.clear()
+            flush()
+            heading = _plain(block.text)
             continue
         if block.kind == "hr":
             continue
-        if body is None:
-            slide = prs.slides.add_slide(prs.slide_layouts[1])
-            slide.shapes.title.text = _plain(title)
-            body = slide.placeholders[1].text_frame
-            body.clear()
-        if block.kind == "table":
-            lines = ["\t".join(_plain(c) for c in row) for row in block.rows]
-        elif block.kind == "code":
-            lines = block.text.splitlines()
-        else:
-            lines = [_plain(block.text)]
-        for line in lines:
-            para = body.paragraphs[0] if not body.paragraphs[0].text else body.add_paragraph()
-            para.text = line
-            para.level = 1 if block.kind in ("bullet", "number") else 0
-            para.font.size = Pt(18)
+        if block.kind == "table" and block.rows:
+            flush()
+            _pptx_table_slide(prs, th, heading, block.rows)
+            continue
+        buffer.append(block)
+    flush()
 
     buf = io.BytesIO()
     prs.save(buf)

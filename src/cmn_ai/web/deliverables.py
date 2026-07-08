@@ -16,8 +16,12 @@ import time
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import Protocol, runtime_checkable
 
-_FENCE = re.compile(r'```cmn:file[ \t]+name="([^"\n]+)"[ \t]*\n(.*?)```[ \t]*\n?', re.DOTALL)
+_FENCE = re.compile(
+    r'```cmn:file[ \t]+name="([^"\n]+)"(?:[ \t]+theme="([^"\n]*)")?[ \t]*\n(.*?)```[ \t]*\n?',
+    re.DOTALL,
+)
 
 _MEDIA_TYPES = {
     "pdf": "application/pdf",
@@ -37,6 +41,7 @@ class Deliverable:
     name: str
     format: str  # "pdf" | "pptx" | "docx" | "md"
     content: str  # the markdown source of the document
+    theme: str = ""  # optional visual theme (report | modern | elegant | deck); "" = default
 
     @property
     def media_type(self) -> str:
@@ -58,7 +63,12 @@ def extract_deliverables(text: str) -> tuple[str, list[Deliverable]]:
 
     def _replace(m: re.Match[str]) -> str:
         name = m.group(1).strip()
-        files.append(Deliverable(name=name, format=_format_for(name), content=m.group(2).strip()))
+        theme = (m.group(2) or "").strip()
+        files.append(
+            Deliverable(
+                name=name, format=_format_for(name), content=m.group(3).strip(), theme=theme
+            )
+        )
         return f"„{name}“ wurde erstellt (siehe Download).\n"
 
     clean = _FENCE.sub(_replace, text)
@@ -71,6 +81,14 @@ class StoredFile:
     media_type: str
     data: bytes
     created_at: float
+
+
+@runtime_checkable
+class FileBackend(Protocol):
+    """Interface both the in-memory and Supabase file stores satisfy."""
+
+    def put(self, name: str, media_type: str, data: bytes) -> str: ...
+    def get(self, file_id: str) -> StoredFile | None: ...
 
 
 class FileStore:

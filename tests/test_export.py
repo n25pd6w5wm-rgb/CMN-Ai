@@ -117,3 +117,46 @@ def test_parse_recognises_ordered_and_quote() -> None:
 
     kinds = {b.kind for b in _parse(_DOC)}
     assert {"number", "bullet", "quote", "hr", "code", "table"} <= kinds
+
+
+# ---------- themes: several visual variants per format ----------
+
+from cmn_ai.web.export import THEMES, resolve_theme  # noqa: E402
+
+
+def test_every_theme_renders_all_formats() -> None:
+    for name in THEMES:
+        pdf = to_pdf(_DOC, theme=name)
+        assert pdf[:4] == b"%PDF", name
+        assert "Quartalsbericht" in _pdf_text(pdf), name
+        assert to_docx(_DOC, theme=name)[:2] == b"PK", name
+        assert to_pptx(_DOC, theme=name)[:2] == b"PK", name
+
+
+def test_unknown_theme_falls_back_but_still_renders() -> None:
+    assert to_pdf(_DOC, theme="does-not-exist")[:4] == b"%PDF"
+    assert to_pptx(_DOC, theme="does-not-exist")[:2] == b"PK"
+
+
+def test_cover_theme_adds_a_title_page() -> None:
+    from pypdf import PdfReader
+
+    plain = PdfReader(io.BytesIO(to_pdf(_DOC, theme="report")))  # no cover
+    covered = PdfReader(io.BytesIO(to_pdf(_DOC, theme="modern")))  # cover=True
+    assert len(covered.pages) > len(plain.pages)
+
+
+def test_resolve_theme_defaults_per_format() -> None:
+    # An empty/unknown theme resolves to a sensible per-format default, and pptx
+    # deliberately defaults to a presentation-oriented theme (cover slide).
+    assert resolve_theme("", "pdf") is resolve_theme("report", "pdf")
+    assert resolve_theme("", "pptx").cover is True
+
+
+def test_pptx_theme_builds_multiple_slides_and_a_table() -> None:
+    from pptx import Presentation
+
+    prs = Presentation(io.BytesIO(to_pptx(_DOC, theme="deck")))
+    assert len(prs.slides) >= 2  # title slide + content
+    has_table = any(shape.has_table for slide in prs.slides for shape in slide.shapes)
+    assert has_table  # the markdown table becomes a real PPTX table, not tab text

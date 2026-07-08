@@ -15,7 +15,16 @@ from datetime import UTC, datetime
 
 from cmn_ai.agents.base import Agent, HealthCheckedAgent
 from cmn_ai.budget.governor import BudgetGovernor
-from cmn_ai.core import AgentResponse, Bucket, Capability, RouteDecision, Task, Usage
+from cmn_ai.core import (
+    AgentResponse,
+    Bucket,
+    Capability,
+    Classification,
+    Complexity,
+    RouteDecision,
+    Task,
+    Usage,
+)
 from cmn_ai.router.interface import Router
 from cmn_ai.storage.decisions import DecisionLog
 
@@ -40,6 +49,74 @@ def _utc_now() -> datetime:
     return datetime.now(UTC)
 
 
+# Auto-team ("does this deserve a panel?"): a deliberately low-threshold heuristic. The
+# user tunes eagerness per chat via ``mode`` — "spar" (budget-conscious, only when it
+# clearly helps) or "power" (a team for almost anything non-trivial). The budget governor
+# stays the hard ceiling in both; mode only changes how often a team convenes and how
+# large it may get.
+_COUNCIL_MIN_CHARS = 20
+_COUNCIL_THRESHOLD = {"power": 1, "spar": 3}
+_COUNCIL_POWER_LENGTH = 60
+_COUNCIL_KEYWORDS = (
+    "vergleich",
+    "compare",
+    "pro und contra",
+    "pros and cons",
+    "vor- und nachteile",
+    "vor und nachteile",
+    "bewerte",
+    "beurteile",
+    "meinung",
+    "perspektive",
+    "optionen",
+    "welche ist besser",
+    "was ist besser",
+    "empfiehl",
+    "empfehlung",
+    "strategie",
+    "entscheide",
+    "entscheidung",
+    "abwägen",
+    "trade-off",
+    "tradeoff",
+)
+
+
+def council_score(prompt: str, classification: Classification) -> int:
+    """Score 'would several AIs help here?' — higher means more worth a team."""
+    lower = prompt.lower()
+    score = 0
+    if classification.complexity is Complexity.HIGH:
+        score += 2
+    if classification.capability is Capability.RESEARCH or classification.needs_web:
+        score += 1
+    if len(prompt) > 240:
+        score += 1
+    if prompt.count("?") >= 2:
+        score += 1
+    # A compare / evaluate / recommend ask is the strongest "several views help" signal —
+    # weighted so it alone crosses the budget-conscious ("spar") threshold.
+    if any(k in lower for k in _COUNCIL_KEYWORDS):
+        score += 3
+    return score
+
+
+def wants_council(prompt: str, classification: Classification, mode: str = "spar") -> bool:
+    """Decide whether to auto-convene a team, given the user's eagerness ``mode``.
+
+    Trivial prompts (greetings, one-liners) never convene a team. In 'power' mode any
+    substantial prompt does; in 'spar' mode only ones with a real multi-perspective
+    signal. Actual spend is still capped by the budget governor downstream.
+    """
+    stripped = prompt.strip()
+    if len(stripped) < _COUNCIL_MIN_CHARS:
+        return False
+    if mode == "power" and len(stripped) >= _COUNCIL_POWER_LENGTH:
+        return True
+    threshold = _COUNCIL_THRESHOLD.get(mode, _COUNCIL_THRESHOLD["spar"])
+    return council_score(prompt, classification) >= threshold
+
+
 SYSTEM_PROMPT = (
     "You are cmn-ai, a capable, thorough assistant.\n"
     "\n"
@@ -58,7 +135,7 @@ SYSTEM_PROMPT = (
     "Files: When the user asks for a document, report, presentation or any file "
     "(e.g. 'als PDF', 'erstelle eine Präsentation', 'gib mir ein Word-Dokument'), "
     "write the COMPLETE document content inside a fenced block of this exact form:\n"
-    '```cmn:file name="dateiname.pdf"\n'
+    '```cmn:file name="dateiname.pdf" theme="modern"\n'
     "# Titel\n"
     "…full, polished Markdown content of the document — not a summary…\n"
     "```\n"
@@ -66,9 +143,19 @@ SYSTEM_PROMPT = (
     "## headings). Put your normal reply before or after the block. The system "
     "turns the block into a real downloadable file automatically.\n"
     "\n"
-    "Document quality (important — these render to a real PDF/Word file):\n"
+    "Design: pick a visual theme that fits the document and add it as "
+    'theme="…" on the fence (optional; a sensible default is used if you omit it). '
+    "Themes: 'report' (formal, blue — business reports, analyses), 'modern' (teal, "
+    "cover page — proposals, product docs), 'elegant' (restrained terracotta, cover "
+    "page — essays, letters, editorial), 'deck' (indigo, cover slide — the best fit "
+    "for .pptx presentations). Choose the one whose tone matches the content.\n"
+    "\n"
+    "Document quality (important — these render to a real, professionally typeset file):\n"
     "- Open with a single '# Title', then organise the body under '##' / '###' "
     "sections; add a short intro and a closing summary or conclusion.\n"
+    "- Design like a designer would: lead each section with one clear idea, use tables "
+    "for anything comparative, and keep slides (.pptx) to a few tight bullets per "
+    "'##' section rather than dense paragraphs.\n"
     "- Use Markdown tables for figures/comparisons, ordered lists for steps, "
     "bullet lists for points, '>' for key takeaways, and fenced code for code.\n"
     "- Write the document to its natural end — never stop mid-sentence or mid-section. "
@@ -180,19 +267,22 @@ class Orchestrator:
         self._log(task.prompt, decision, response)
         return decision, response
 
-    async def handle_council(self, task: Task) -> tuple[RouteDecision, AgentResponse | None]:
+    async def handle_council(
+        self, task: Task, *, mode: str = "power"
+    ) -> tuple[RouteDecision, AgentResponse | None]:
         """Team mode: several AIs answer in parallel, one merges them into one reply.
 
         Robust to the local model being down — it collaborates with whatever paid
         agents are reachable and affordable. Degrades gracefully: with a single
         available AI it just returns that answer (no merge); with none it blocks.
+        ``mode`` tunes team size: "power" uses the full panel, "spar" a leaner one.
         """
         for candidate_agent in self._agents.values():
             if isinstance(candidate_agent, HealthCheckedAgent):
                 await candidate_agent.refresh_health()
 
         classification = self._router.classify(task)
-        pool = self._council_pool(task, classification)
+        pool = self._council_pool(task, classification, mode=mode)
         if not pool:
             decision = RouteDecision(
                 classification=classification,
@@ -247,7 +337,9 @@ class Orchestrator:
         self._log(task.prompt, decision, response)
         return decision, response
 
-    def _council_pool(self, task: Task, classification: object) -> list[Agent]:
+    def _council_pool(
+        self, task: Task, classification: object, *, mode: str = "power"
+    ) -> list[Agent]:
         cap = getattr(classification, "capability", Capability.CHAT)
         capable = [
             a
@@ -265,7 +357,9 @@ class Orchestrator:
         # any capable agent not named in the preference trails behind.
         ordered = [ready[n] for n in _COUNCIL_PREFERENCE if n in ready]
         ordered += [a for a in ready.values() if a not in ordered]
-        return ordered[:_COUNCIL_MAX]
+        # "spar" keeps the panel lean (cost-conscious); "power" uses the full team.
+        max_n = 2 if mode == "spar" else _COUNCIL_MAX
+        return ordered[:max_n]
 
     async def _merge_drafts(self, task: Task, drafts: list[AgentResponse]) -> AgentResponse | None:
         by_name = {d.agent: d for d in drafts}
