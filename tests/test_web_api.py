@@ -283,6 +283,13 @@ def test_manifest_is_served(tmp_path: Path) -> None:
     assert r.json()["display"] == "standalone"
 
 
+def test_favicon_is_served(tmp_path: Path) -> None:
+    client = _client(tmp_path)
+    r = client.get("/favicon.ico")
+    assert r.status_code == 200
+    assert r.headers["content-type"] == "image/png"
+
+
 def test_service_worker_served_at_root_scope(tmp_path: Path) -> None:
     client = _client(tmp_path)
     r = client.get("/sw.js")
