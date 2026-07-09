@@ -261,3 +261,17 @@ Beantwortung umformulieren (klarer/präziser). Sicher gebaut: triviale Prompts w
   irreführendes „Fallback"-Label.
 - **Landing Page:** Die Hauptdomain zeigt Besuchern jetzt die Produktseite mit
   „App downloaden" (PWA) und „oder im Browser öffnen".
+- **Vier Dokument-Designs:** PDF/DOCX/PPTX gibt es jetzt in vier Stilen —
+  `report` (formell, blau, Standard für Berichte), `modern` (petrol, mit Titelseite),
+  `elegant` (zurückhaltend terrakotta, mit Titelseite) und `deck` (indigo, Standard
+  für Präsentationen). Die KI wählt automatisch das passende Design; auch PowerPoint
+  hat jetzt echte Farbflächen, Titelfolien und formatierte Tabellen statt der reinen
+  Standardvorlage.
+- **Chat wie aus einem Guss:** Code wird beim Streamen live farbig hervorgehoben,
+  ```mermaid```-Blöcke werden als Diagramm gerendert, Markdown wird schon während der
+  Antwort formatiert (nicht erst am Ende). Jede Antwort hat jetzt einen
+  **„⎘ kopieren"-Button** neben den Download-Buttons (auch bei alten Chats).
+- **Team entscheidet mit:** Im Modell-Menü gibt es „Auto · sparsam" (Standard — die KI
+  zieht bei Bedarf selbst ein Team aus mehreren KIs hinzu, aber zurückhaltend) und
+  „Auto · Power-Team" (Team wird sehr schnell hinzugezogen). „Team (immer)" erzwingt
+  wie bisher ein volles Team. Das Wochenbudget bleibt in jedem Modus die harte Grenze.
