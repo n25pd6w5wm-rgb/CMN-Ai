@@ -400,6 +400,12 @@ def build_app(state: AppState) -> FastAPI:
             media_type="application/manifest+json",
         )
 
+    @app.get("/favicon.ico", include_in_schema=False)
+    async def favicon() -> FileResponse:
+        # Browsers/tools that ignore the <link rel="icon"> tags request this path
+        # directly; a bare 404 there looks broken in logs and link previews.
+        return FileResponse(_WEB_DIR / "static" / "icons" / "icon-192.png", media_type="image/png")
+
     @app.get("/sw.js", include_in_schema=False)
     async def service_worker() -> FileResponse:
         # Served from root so the worker's scope covers the whole app.

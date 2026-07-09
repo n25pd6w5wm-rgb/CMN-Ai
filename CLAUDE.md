@@ -11,12 +11,21 @@ Perplexity) are engaged only when a task needs them and the budget allows.
 
 ## Architecture (distributed, for hosted use)
 
-- **Render** hosts this FastAPI app (chat UI + orchestrator + login).
+- **Render** hosts this FastAPI app (chat UI + orchestrator + login) — the primary,
+  supported host (`Dockerfile` + `render.yaml`, persistent disk, Python 3.11).
+- **Vercel** is a serverless **experiment**, branch `vercel/serverless-deploy` (not
+  merged into `build/greenfield-mvp` — it needs Python **3.12**, pinned only on that
+  branch's `.python-version`, for Vercel's `uv`-based Python builder; see
+  `docs/DEPLOY.md` §4a). Since serverless has no persistent disk, that branch's
+  `config/vercel.yaml` sets `storage.stateless: true`, which routes the budget ledger
+  and generated-file downloads to Supabase (`SupabaseLedger`/`SupabaseFileStore`,
+  tables `cmn_ledger`/`cmn_files`) instead of local SQLite/in-memory.
 - **Supabase** is the account backend: login/signup, per-user conversations
   (`cmn_conversations` / `cmn_messages`), and the `api_keys` table.
 - **Raspberry Pi** runs the free local model (Ollama); the app reaches it via
-  `OLLAMA_HOST` over an **outbound tunnel** (Cloudflare/Tailscale — no port forwarding).
-- **GitHub** holds the code; Render deploys from it.
+  `OLLAMA_HOST` over an **outbound tunnel** — Tailscale Funnel is the default in
+  `scripts/start-pi.sh` (no domain needed; Cloudflare Named Tunnel needs one).
+- **GitHub** holds the code; Render deploys from `build/greenfield-mvp`.
 
 Runs in two modes automatically:
 - **Open / local** (no Supabase env): no login, single user, SQLite storage. For Mac dev.
@@ -66,19 +75,29 @@ coverage. New code lands with tests + all gates green.
 
 ```
 web/        FastAPI app (app.py), templates (index/login/landing), static (chat.css/js, PWA)
+web/export.py       Markdown -> PDF/DOCX/PPTX, four visual themes (report/modern/elegant/deck)
+web/deliverables.py cmn:file fence parsing (name + optional theme) -> Deliverable + FileStore
 router/     RuleRouter + trained Dirigent (mlx/ollama) behind a Router protocol
 agents/     Agent protocol + adapters (local, anthropic, coding+tool-loop, openai, gemini, perplexity)
-budget/     pricing, ledger, governor (rolling weekly caps, buckets)
+orchestrator.py  routes single-agent turns; handle_council runs a team in parallel + merges
+                 — council_score/wants_council decide auto-team eagerness (chat modes
+                 "spar"/"power"); SYSTEM_PROMPT teaches file + theme + design guidance
+budget/     pricing, governor (rolling weekly caps, buckets); ledger.py (LedgerBackend
+            protocol) + SQLite Ledger (Render/local) + supabase_ledger.py (Vercel)
 storage/    conversations (SQLite ConversationStore + SupabaseConversationStore behind
             ConversationBackend), decisions
+web/supabase_files.py  Supabase-backed FileBackend (Vercel — see deliverables.FileBackend)
 web/auth.py Supabase Auth client + session gating
-config.py   layered YAML + profiles (mac/pi/render) + env overrides (OLLAMA_HOST)
+config.py   layered YAML + profiles (mac/pi/render/vercel) + env overrides (OLLAMA_HOST);
+            storage.stateless picks the ledger/file backend (Supabase vs local)
 ```
 
 ## Docs
 
 - `docs/BENUTZERHANDBUCH.md` — end-user guide (DE)
-- `docs/DEPLOY.md` — GitHub + Render + Supabase + Pi (no port forwarding)
+- `docs/DEPLOY.md` — GitHub + Render + Vercel (§4a) + Supabase + Pi (no port forwarding)
 - `docs/router-on-pi.md` — serving the trained router on the Pi
-- `scripts/install-pi.sh` — one-shot Pi setup (Ollama + model + tunnel)
+- `scripts/install-pi.sh` / `scripts/start-pi.sh` — one-shot Pi setup + tunnel (Tailscale
+  Funnel by default; both scripts hand off cleanly instead of blocking if Tailscale isn't
+  set up yet — see the scripts' own comments for the exact failure messages)
 ```

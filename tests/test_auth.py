@@ -125,3 +125,61 @@ async def test_update_password_raises_on_failure() -> None:
         pass
     else:
         raise AssertionError("expected AuthError")
+
+
+# ---------- per-request latency: token cache + pooled client ----------
+# Every /api/* request runs get_user through the auth middleware. Without a cache
+# that is one full Supabase round-trip per request — the "settings menu feels slow"
+# report. A short TTL cache keeps the hot path local.
+
+
+@respx.mock
+async def test_get_user_caches_valid_token_within_ttl() -> None:
+    route = respx.get(_USER_EP).mock(
+        return_value=httpx.Response(200, json={"id": "u1", "email": "a@b.de"})
+    )
+    clock = {"t": 100.0}
+    auth = SupabaseAuth(_URL, "anon-key", cache_ttl=60.0, now=lambda: clock["t"])
+    first = await auth.get_user("tok")
+    clock["t"] += 5.0
+    second = await auth.get_user("tok")
+    assert first == second
+    assert route.call_count == 1  # second call served from cache
+
+
+@respx.mock
+async def test_get_user_cache_expires_after_ttl() -> None:
+    route = respx.get(_USER_EP).mock(
+        return_value=httpx.Response(200, json={"id": "u1", "email": "a@b.de"})
+    )
+    clock = {"t": 100.0}
+    auth = SupabaseAuth(_URL, "anon-key", cache_ttl=60.0, now=lambda: clock["t"])
+    await auth.get_user("tok")
+    clock["t"] += 61.0
+    await auth.get_user("tok")
+    assert route.call_count == 2  # expired -> revalidated against Supabase
+
+
+@respx.mock
+async def test_get_user_does_not_cache_invalid_tokens() -> None:
+    route = respx.get(_USER_EP).mock(return_value=httpx.Response(401, json={"msg": "bad"}))
+    auth = SupabaseAuth(_URL, "anon-key", cache_ttl=60.0, now=lambda: 100.0)
+    assert await auth.get_user("bad") is None
+    assert await auth.get_user("bad") is None
+    assert route.call_count == 2  # invalid tokens are never cached
+
+
+@respx.mock
+async def test_get_user_distinct_tokens_cached_separately() -> None:
+    respx.get(_USER_EP).mock(
+        side_effect=[
+            httpx.Response(200, json={"id": "u1"}),
+            httpx.Response(200, json={"id": "u2"}),
+        ]
+    )
+    auth = SupabaseAuth(_URL, "anon-key", cache_ttl=60.0, now=lambda: 100.0)
+    u1, u2 = await auth.get_user("t1"), await auth.get_user("t2")
+    assert u1 is not None and u1["id"] == "u1"
+    assert u2 is not None and u2["id"] == "u2"
+    again = await auth.get_user("t1")
+    assert again is not None and again["id"] == "u1"  # still cached per token

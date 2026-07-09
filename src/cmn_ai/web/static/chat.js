@@ -87,7 +87,10 @@ function renderMermaid(root) {
     nodes.push(div);
   }
   try {
-    window.mermaid.run({ nodes });
+    // mermaid.run is async — a broken diagram rejects the promise, so the catch
+    // must live on the promise, not around the call, or it escapes to the console.
+    const result = window.mermaid.run({ nodes });
+    if (result && typeof result.catch === "function") result.catch(() => {});
   } catch (e) {}
 }
 
@@ -603,6 +606,9 @@ async function uploadVault() {
 }
 
 async function openSettings() {
+  // Open instantly; the data fills in as it arrives. Waiting for four API calls
+  // before showing anything made the menu feel slow, especially on hosted.
+  $("#settings-overlay").hidden = false;
   const [settings, models, me, vault] = await Promise.all([
     (await fetch("/api/settings")).json(),
     (await fetch("/api/models")).json(),
@@ -634,7 +640,6 @@ async function openSettings() {
       `<span class="set-state">${m.active ? "active" : "no key"}</span>`;
     list.appendChild(li);
   }
-  $("#settings-overlay").hidden = false;
 }
 function closeSettings() {
   $("#settings-overlay").hidden = true;
