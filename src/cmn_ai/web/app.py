@@ -77,18 +77,38 @@ Auth-Dienstleister Supabase (EU-Region), zur Anmeldung und Kontoverwaltung
 <li><strong>Konversationen:</strong> Deine Chat-Nachrichten und die KI-Antworten werden
 deinem Konto zugeordnet gespeichert, damit du sie wieder öffnen kannst. Du kannst
 Konversationen jederzeit in der App löschen.</li>
-<li><strong>KI-Verarbeitung:</strong> Zur Beantwortung wird der Inhalt deiner Nachricht an
-das jeweils gewählte KI-Modell übermittelt — lokal betriebene Modelle oder
-API-Anbieter (Anthropic, OpenAI, Google, Perplexity). Welche KI geantwortet hat,
-zeigt die App unter jeder Antwort an.</li>
-<li><strong>Session-Cookie:</strong> Ein technisch notwendiges Cookie hält dich angemeldet.
+<li><strong>KI-Verarbeitung:</strong> Zur Beantwortung wird der Inhalt deiner Nachricht
+(inkl. hochgeladener Dateien) an das jeweils gewählte KI-Modell übermittelt — ein
+selbst betriebenes lokales Modell (Ollama, eigener Server, keine Weitergabe an
+Dritte) oder API-Anbieter (Anthropic, OpenAI, Google, Perplexity;
+Art. 6 Abs. 1 lit. b DSGVO). Diese Anbieter verarbeiten Daten teilweise in den
+<strong>USA</strong>; die Übermittlung stützt sich auf EU-Standardvertragsklauseln
+bzw. das EU-US Data Privacy Framework der jeweiligen Anbieter. Welche KI
+geantwortet hat, zeigt die App transparent unter jeder Antwort an.</li>
+<li><strong>Generierte Dateien:</strong> Von der KI erstellte Dokumente (PDF/Word/
+PowerPoint/Excel) werden für den Download kurzzeitig zwischengespeichert
+(max. 1 Stunde) und danach automatisch gelöscht.</li>
+<li><strong>Session-Cookie:</strong> Ein technisch notwendiges Cookie hält dich angemeldet
+(Art. 6 Abs. 1 lit. f DSGVO; § 25 Abs. 2 Nr. 2 TDDDG — keine Einwilligung nötig).
+Die Design-Einstellung (hell/dunkel) liegt nur lokal in deinem Browser.
 Es gibt kein Tracking, keine Werbe-Cookies, keine Analyse-Pixel.</li>
 </ul>
-<h2>3. Hosting</h2>
-<p>Die App läuft bei Render (Cloud-Hosting). Beim Aufruf fallen technisch notwendige
-Server-Logs an (IP-Adresse, Zeitpunkt, aufgerufene Seite), die zur Betriebssicherheit
-kurzzeitig gespeichert werden (Art. 6 Abs. 1 lit. f DSGVO).</p>
-<h2>4. Deine Rechte</h2>
+<h2>3. Keine Anfragen an Dritte im Browser</h2>
+<p>Alle Schriften und Skripte werden von unserer eigenen Domain ausgeliefert
+(self-hosted). Beim Besuch der Seite wird <strong>keine</strong> Verbindung zu
+Google Fonts, CDNs oder anderen Drittservern aufgebaut.</p>
+<h2>4. Hosting</h2>
+<p>Die App läuft bei Render (render.com) bzw. Vercel (vercel.com, für cmn-ai.com).
+Beim Aufruf fallen technisch notwendige Server-Logs an (IP-Adresse, Zeitpunkt,
+aufgerufene Seite), die zur Betriebssicherheit kurzzeitig gespeichert werden
+(Art. 6 Abs. 1 lit. f DSGVO). Konten und Konversationen liegen bei Supabase
+(EU-Region). Mit allen Hosting-Anbietern bestehen Auftragsverarbeitungsverträge
+(Art. 28 DSGVO) über deren Standard-Bedingungen.</p>
+<h2>5. Speicherdauer &amp; Löschung</h2>
+<p>Konversationen bleiben gespeichert, bis du sie in der App löschst oder dein Konto
+gelöscht wird. Zur Kontolöschung genügt eine formlose Nachricht an die im Impressum
+genannte Adresse.</p>
+<h2>6. Deine Rechte</h2>
 <p>Du hast das Recht auf Auskunft, Berichtigung, Löschung, Einschränkung der
 Verarbeitung, Datenübertragbarkeit und Widerspruch (Art. 15 bis 21 DSGVO) sowie auf
 Beschwerde bei einer Aufsichtsbehörde. Schreib dazu an die im Impressum genannte
@@ -248,6 +268,17 @@ def build_app(state: AppState) -> FastAPI:
         "/sw.js",
         "/favicon.ico",
     }
+
+    @app.middleware("http")
+    async def privacy_headers(
+        request: Request, call_next: Callable[[Request], Awaitable[Response]]
+    ) -> Response:
+        # Privacy/security baseline: no MIME sniffing, and never leak our URLs
+        # (which may contain file ids) to third parties via the Referer header.
+        response = await call_next(request)
+        response.headers.setdefault("X-Content-Type-Options", "nosniff")
+        response.headers.setdefault("Referrer-Policy", "same-origin")
+        return response
 
     @app.middleware("http")
     async def auth_gate(

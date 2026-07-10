@@ -11,12 +11,8 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="cmn·ai" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Newsreader:opsz,wght@6..72,400;6..72,500;6..72,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
-      rel="stylesheet"
-    />
+    <!-- Fonts self-hosted (GDPR: no request to Google) -->
+    <link rel="stylesheet" href="/static/fonts/fonts.css" />
     <link rel="stylesheet" href="/static/chat.css?v={{ css_v }}" />
     <script>try{var t=localStorage.getItem("cmn-theme");if(t)document.documentElement.dataset.theme=t}catch(e){}</script>
   </head>
@@ -100,7 +96,9 @@
               </button>
             </div>
           </form>
-          <p class="cc-hint">Der Dirigent wählt automatisch das passende Modell — bezahlt wird nur, wenn es zählt.</p>
+          <p class="cc-hint">Der Dirigent wählt automatisch das passende Modell — bezahlt wird nur, wenn es zählt.
+            <a href="/impressum" style="color:inherit;">Impressum</a> ·
+            <a href="/datenschutz" style="color:inherit;">Datenschutz</a></p>
         </div>
       </main>
     </div>
@@ -215,13 +213,12 @@
         });
       })();
     </script>
-    <script defer src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
-    <!-- Rich rendering: syntax highlighting for code + Mermaid diagrams. Both are
-         optional — chat.js guards on window.hljs / window.mermaid so the chat still
-         works if a CDN is blocked. Code colours come from chat.css (theme-aware). -->
-    <script defer src="https://cdn.jsdelivr.net/npm/@highlightjs/cdn-assets@11.9.0/highlight.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/mermaid@10.9.1/dist/mermaid.min.js"></script>
+    <!-- All rendering libraries are self-hosted (GDPR: no third-party requests).
+         chat.js still guards on window.marked/DOMPurify/hljs, and Mermaid is
+         lazy-loaded from /static/vendor only when an answer contains a diagram. -->
+    <script defer src="/static/vendor/marked.min.js"></script>
+    <script defer src="/static/vendor/purify.min.js"></script>
+    <script defer src="/static/vendor/highlight.min.js"></script>
     <script src="/static/chat.js?v={{ js_v }}"></script>
   </body>
 </html>

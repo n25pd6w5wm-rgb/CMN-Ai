@@ -66,17 +66,32 @@ function enhanceRendered(bubble) {
   }
 }
 
-let _mermaidReady = false;
+// Mermaid is ~3 MB, so it is NOT loaded with the page: the self-hosted bundle
+// (/static/vendor — GDPR: no third-party request) is injected on demand the
+// first time an answer actually contains a ```mermaid diagram.
+let _mermaidLoading = null;
+function loadMermaid() {
+  if (window.mermaid) return Promise.resolve();
+  if (!_mermaidLoading) {
+    _mermaidLoading = new Promise((resolve) => {
+      const s = document.createElement("script");
+      s.src = "/static/vendor/mermaid.min.js";
+      s.onload = () => {
+        try {
+          window.mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: "neutral" });
+        } catch (e) {}
+        resolve();
+      };
+      s.onerror = () => resolve(); // renderMermaid guards on window.mermaid
+      document.head.appendChild(s);
+    });
+  }
+  return _mermaidLoading;
+}
+
 function renderMermaid(root) {
-  if (!window.mermaid) return;
   const codes = [...root.querySelectorAll("pre code.language-mermaid")];
   if (!codes.length) return;
-  if (!_mermaidReady) {
-    try {
-      window.mermaid.initialize({ startOnLoad: false, securityLevel: "strict", theme: "neutral" });
-    } catch (e) {}
-    _mermaidReady = true;
-  }
   const nodes = [];
   for (const code of codes) {
     const pre = code.closest("pre");
@@ -86,12 +101,15 @@ function renderMermaid(root) {
     pre.replaceWith(div);
     nodes.push(div);
   }
-  try {
-    // mermaid.run is async — a broken diagram rejects the promise, so the catch
-    // must live on the promise, not around the call, or it escapes to the console.
-    const result = window.mermaid.run({ nodes });
-    if (result && typeof result.catch === "function") result.catch(() => {});
-  } catch (e) {}
+  loadMermaid().then(() => {
+    if (!window.mermaid) return; // bundle missing/blocked: plain text stays visible
+    try {
+      // mermaid.run is async — a broken diagram rejects the promise, so the catch
+      // must live on the promise, not around the call, or it escapes to the console.
+      const result = window.mermaid.run({ nodes });
+      if (result && typeof result.catch === "function") result.catch(() => {});
+    } catch (e) {}
+  });
 }
 
 // Copy the whole answer as plain text/markdown. Shared by live answers + history.
