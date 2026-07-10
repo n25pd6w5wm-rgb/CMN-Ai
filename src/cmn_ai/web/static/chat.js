@@ -396,6 +396,7 @@ function addDownloadButton(wrap, bubble, raw) {
   mk("\u2913 pdf", (btn) => exportAnswer(text, "pdf", btn));
   mk("\u2913 docx", (btn) => exportAnswer(text, "docx", btn));
   mk("\u2913 pptx", (btn) => exportAnswer(text, "pptx", btn));
+  mk("\u2913 xlsx", (btn) => exportAnswer(text, "xlsx", btn));
   wrap.appendChild(row);
 }
 

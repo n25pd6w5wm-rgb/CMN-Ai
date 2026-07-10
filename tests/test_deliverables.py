@@ -59,6 +59,12 @@ def test_docx_format_inferred() -> None:
     assert files[0].format == "docx"
 
 
+def test_xlsx_format_inferred_with_media_type() -> None:
+    _clean, files = extract_deliverables('```cmn:file name="budget.xlsx"\n| a | b |\n```')
+    assert files[0].format == "xlsx"
+    assert "spreadsheetml" in files[0].media_type
+
+
 def test_plain_answer_passes_through() -> None:
     clean, files = extract_deliverables("Nur Text, keine Datei.")
     assert files == []

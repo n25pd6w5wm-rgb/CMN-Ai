@@ -129,7 +129,7 @@ class BenchmarkRequest(BaseModel):
 
 class ExportRequest(BaseModel):
     content: str
-    format: Literal["pdf", "pptx", "docx"]
+    format: Literal["pdf", "pptx", "docx", "xlsx"]
     filename: str | None = None  # without extension
     theme: str | None = None  # optional visual theme (report | modern | elegant | deck)
 
@@ -185,12 +185,13 @@ _MEDIA_TYPES = {
     "pdf": "application/pdf",
     "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "md": "text/markdown",
 }
 
 
 def _render_document(fmt: str, content: str, theme: str = "") -> bytes:
-    from cmn_ai.web.export import to_docx, to_pdf, to_pptx
+    from cmn_ai.web.export import to_docx, to_pdf, to_pptx, to_xlsx
 
     if fmt == "pdf":
         return to_pdf(content, theme=theme)
@@ -198,6 +199,8 @@ def _render_document(fmt: str, content: str, theme: str = "") -> bytes:
         return to_pptx(content, theme=theme)
     if fmt == "docx":
         return to_docx(content, theme=theme)
+    if fmt == "xlsx":
+        return to_xlsx(content, theme=theme)
     return content.encode("utf-8")  # markdown / plain-text fallback
 
 

@@ -98,11 +98,37 @@ THEMES: dict[str, Theme] = {
         title_size=32.0,
         heading_accent=True,
     ),
+    "minimal": Theme(
+        name="minimal",
+        accent=(26, 26, 26),
+        accent_dark=(0, 0, 0),
+        head_bg=(238, 238, 238),
+        ink=(26, 26, 26),
+        muted=(120, 120, 120),
+        code_bg=(245, 245, 245),
+        rule=(220, 220, 220),
+        cover=False,
+        title_size=26.0,
+        heading_accent=False,
+    ),
+    "warm": Theme(
+        name="warm",
+        accent=(146, 100, 62),
+        accent_dark=(92, 62, 38),
+        head_bg=(244, 239, 230),
+        ink=(28, 26, 24),
+        muted=(125, 112, 100),
+        code_bg=(247, 243, 237),
+        rule=(228, 220, 210),
+        cover=True,
+        title_size=30.0,
+        heading_accent=True,
+    ),
 }
 
 # When the model doesn't name a theme, pick one that fits the format: documents get
 # the formal report look; slide decks get the presentation-oriented deck theme.
-_DEFAULT_THEME_FOR = {"pdf": "report", "docx": "report", "pptx": "deck"}
+_DEFAULT_THEME_FOR = {"pdf": "report", "docx": "report", "pptx": "deck", "xlsx": "report"}
 
 
 def resolve_theme(name: str, fmt: str) -> Theme:
@@ -735,4 +761,94 @@ def to_pptx(content: str, *, theme: str = "") -> bytes:
 
     buf = io.BytesIO()
     prs.save(buf)
+    return buf.getvalue()
+
+
+# ---------- XLSX (openpyxl) — opens natively in Excel and Apple Numbers ----------
+
+
+def _xlsx_cell_value(text: str) -> object:
+    """Store numeric-looking cells as real numbers so formulas/sorting work."""
+    s = _plain(text).strip()
+    try:
+        return int(s)
+    except ValueError:
+        try:
+            return float(s)
+        except ValueError:
+            return s
+
+
+def _sheet_title(raw: str, used: set[str], fallback: str) -> str:
+    clean = re.sub(r"[\[\]:*?/\\]", "", _plain(raw)).strip()[:31] or fallback
+    title, n = clean, 2
+    while title in used:
+        title = f"{clean[:28]} {n}"
+        n += 1
+    used.add(title)
+    return title
+
+
+def to_xlsx(content: str, *, theme: str = "") -> bytes:
+    from openpyxl import Workbook
+    from openpyxl.styles import Alignment, Font, PatternFill
+    from openpyxl.utils import get_column_letter
+
+    th = resolve_theme(theme, "xlsx")
+    accent_hex = "".join(f"{c:02X}" for c in th.accent)
+    header_fill = PatternFill(start_color=accent_hex, end_color=accent_hex, fill_type="solid")
+    header_font = Font(bold=True, color="FFFFFF")
+
+    blocks = _parse(content)
+    wb = Workbook()
+    wb.remove(wb.worksheets[0])  # drop the default sheet; we create our own
+    used_titles: set[str] = set()
+
+    # Prose (headings, paragraphs, lists, quotes) goes onto a leading overview
+    # sheet; every markdown table becomes its own data sheet named after the
+    # heading that precedes it.
+    overview: list[tuple[str, str]] = []  # (kind, text)
+    tables: list[tuple[str, list[list[str]]]] = []
+    heading = ""
+    for blk in blocks:
+        if blk.kind in ("h1", "h2", "h3", "h4"):
+            heading = blk.text
+            overview.append(("head", _plain(blk.text)))
+        elif blk.kind == "table" and blk.rows:
+            tables.append((heading, blk.rows))
+        elif blk.kind in ("para", "quote"):
+            overview.append(("text", _plain(blk.text)))
+        elif blk.kind in ("bullet", "number"):
+            overview.append(("text", f"• {_plain(blk.text)}"))
+
+    has_prose = any(k == "text" for k, _ in overview)
+    if has_prose or not tables:
+        ws = wb.create_sheet(_sheet_title("Übersicht", used_titles, "Übersicht"))
+        row = 1
+        for kind, text in overview:
+            cell = ws.cell(row=row, column=1, value=text)
+            if kind == "head":
+                cell.font = Font(bold=True, size=14 if row == 1 else 12)
+            cell.alignment = Alignment(wrap_text=True, vertical="top")
+            row += 1
+        ws.column_dimensions["A"].width = 90
+
+    for i, (title, rows) in enumerate(tables, start=1):
+        ws = wb.create_sheet(_sheet_title(title, used_titles, f"Tabelle {i}"))
+        widths: dict[int, int] = {}
+        for r, row_cells in enumerate(rows, start=1):
+            for c, cell_text in enumerate(row_cells, start=1):
+                cell = ws.cell(row=r, column=c, value=_xlsx_cell_value(cell_text))
+                widths[c] = max(widths.get(c, 0), len(str(cell.value or "")))
+                if r == 1:
+                    cell.fill = header_fill
+                    cell.font = header_font
+        for c, w in widths.items():
+            ws.column_dimensions[get_column_letter(c)].width = min(max(w + 3, 10), 60)
+        ws.freeze_panes = "A2"
+        if rows and len(rows) > 1:
+            ws.auto_filter.ref = f"A1:{get_column_letter(max(len(r) for r in rows))}{len(rows)}"
+
+    buf = io.BytesIO()
+    wb.save(buf)
     return buf.getvalue()

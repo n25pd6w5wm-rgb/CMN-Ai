@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import io
 
-from cmn_ai.web.export import to_docx, to_pdf, to_pptx
+from cmn_ai.web.export import to_docx, to_pdf, to_pptx, to_xlsx
 
 _RICH = (
     "# Bericht\n"
@@ -131,6 +131,12 @@ def test_every_theme_renders_all_formats() -> None:
         assert "Quartalsbericht" in _pdf_text(pdf), name
         assert to_docx(_DOC, theme=name)[:2] == b"PK", name
         assert to_pptx(_DOC, theme=name)[:2] == b"PK", name
+        assert to_xlsx(_DOC, theme=name)[:2] == b"PK", name
+
+
+def test_theme_roster_covers_the_promised_styles() -> None:
+    # The SYSTEM_PROMPT teaches these names to the model — they must all exist.
+    assert {"report", "modern", "elegant", "deck", "minimal", "warm"} <= set(THEMES)
 
 
 def test_unknown_theme_falls_back_but_still_renders() -> None:
@@ -160,3 +166,39 @@ def test_pptx_theme_builds_multiple_slides_and_a_table() -> None:
     assert len(prs.slides) >= 2  # title slide + content
     has_table = any(shape.has_table for slide in prs.slides for shape in slide.shapes)
     assert has_table  # the markdown table becomes a real PPTX table, not tab text
+
+
+# ---------- XLSX (openpyxl) — opens in Excel and Apple Numbers ----------
+
+
+def test_xlsx_tables_become_real_sheets_with_numbers() -> None:
+    from openpyxl import load_workbook
+
+    wb = load_workbook(io.BytesIO(to_xlsx(_DOC)))
+    # The markdown table lands on a data sheet with its header row intact …
+    sheet = next(ws for ws in wb.worksheets if ws.max_row >= 2 and ws.cell(1, 1).value == "Monat")
+    assert sheet.cell(1, 2).value == "Umsatz"
+    assert sheet.cell(2, 1).value == "Juli"
+    # … and numeric-looking cells are stored as numbers, not strings.
+    assert sheet.cell(2, 2).value == "1234 €"  # currency text stays text
+
+
+def test_xlsx_pure_numbers_are_numeric_cells() -> None:
+    from openpyxl import load_workbook
+
+    md = "# Zahlen\n\n| Posten | Wert |\n| --- | --- |\n| A | 42 |\n| B | 3.5 |\n"
+    wb = load_workbook(io.BytesIO(to_xlsx(md)))
+    sheet = next(ws for ws in wb.worksheets if ws.cell(1, 1).value == "Posten")
+    assert sheet.cell(2, 2).value == 42
+    assert sheet.cell(3, 2).value == 3.5
+
+
+def test_xlsx_without_tables_still_produces_a_workbook() -> None:
+    from openpyxl import load_workbook
+
+    wb = load_workbook(io.BytesIO(to_xlsx("# Nur Text\n\nEin Absatz ohne Tabelle.")))
+    assert wb.worksheets  # an overview sheet carries the text content
+    text = " ".join(
+        str(c.value) for row in wb.worksheets[0].iter_rows() for c in row if c.value is not None
+    )
+    assert "Nur Text" in text

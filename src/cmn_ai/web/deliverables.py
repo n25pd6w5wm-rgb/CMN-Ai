@@ -27,6 +27,7 @@ _MEDIA_TYPES = {
     "pdf": "application/pdf",
     "pptx": "application/vnd.openxmlformats-officedocument.presentationml.presentation",
     "docx": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    "xlsx": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     "md": "text/markdown",
 }
 
@@ -51,7 +52,7 @@ class Deliverable:
 def _format_for(name: str) -> str:
     dot = name.rfind(".")
     ext = name[dot + 1 :].lower() if dot != -1 else ""
-    return ext if ext in ("pdf", "pptx", "docx") else "md"
+    return ext if ext in ("pdf", "pptx", "docx", "xlsx") else "md"
 
 
 def extract_deliverables(text: str) -> tuple[str, list[Deliverable]]:
