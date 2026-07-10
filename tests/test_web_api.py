@@ -46,10 +46,22 @@ class FakeAgent:
         )
 
 
-def _client(tmp_path: Path) -> TestClient:
+class FakeHealthCheckedAgent(FakeAgent):
+    """Local-style agent whose ``active`` state only flips via a health probe."""
+
+    def __init__(self, *args: object, **kwargs: object) -> None:
+        super().__init__(*args, **kwargs)  # type: ignore[arg-type]
+        self.active = False
+
+    async def refresh_health(self) -> None:
+        self.active = True
+
+
+def _client(tmp_path: Path, *, local_agent: FakeAgent | None = None) -> TestClient:
     settings = Settings(profile="mac", budget=BudgetSettings(monthly_budget_eur=30.0))
     agents = {
-        "local": FakeAgent(
+        "local": local_agent
+        or FakeAgent(
             "local",
             capabilities={Capability.CHAT, Capability.CODE},
             cost=FREE,
@@ -93,6 +105,21 @@ def test_models_lists_agents(tmp_path: Path) -> None:
     # Every model carries a "tools" field; non-coding agents report none.
     assert all("tools" in m for m in data["models"])
     assert local["tools"] is None
+
+
+def test_models_probes_local_health_before_reporting(tmp_path: Path) -> None:
+    # On serverless hosts every request may hit a cold process whose local agent
+    # starts pessimistically inactive; without a probe the model picker would
+    # never show the local model there, even with the Pi reachable.
+    local = FakeHealthCheckedAgent(
+        "local", capabilities={Capability.CHAT}, cost=FREE, bucket=Bucket.GENERAL
+    )
+    client = _client(tmp_path, local_agent=local)
+
+    data = client.get("/api/models").json()
+
+    local_entry = next(m for m in data["models"] if m["name"] == "local")
+    assert local_entry["active"] is True
 
 
 def test_budget_reports_caps(tmp_path: Path) -> None:

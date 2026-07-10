@@ -12,7 +12,12 @@
 # Usage:
 #   ./scripts/install-pi.sh                         # installs + starts a temporary quick tunnel
 #   CF_TUNNEL_TOKEN=eyJ... ./scripts/install-pi.sh  # installs + persistent named tunnel (stable URL)
-#   CMN_AI_MODEL=gemma3:4b ./scripts/install-pi.sh   # pick the model to pull
+#   CMN_AI_MODEL=gemma4:e2b ./scripts/install-pi.sh  # pick the model to pull
+#
+# gemma3:1b is the default because it is the biggest model a Pi runs comfortably;
+# the app auto-serves the newest Gemma generation the host has pulled (gemma4 >
+# gemma3, see src/cmn_ai/agents/local.py), so pulling a Gemma 4 on stronger
+# hardware needs no config change. Smallest Gemma 4 is gemma4:e2b-it-qat (4.3 GB).
 #
 # Get CF_TUNNEL_TOKEN from Cloudflare Zero Trust → Networks → Tunnels → Create a tunnel
 # (Cloudflared) → copy the token. That gives a stable https URL with no interactive login.

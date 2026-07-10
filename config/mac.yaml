@@ -1,6 +1,8 @@
-# macOS development profile. Gemma runs locally via Ollama; a larger Gemma 3 model is
-# used here as the local heavy-lift option (pull it with: ollama pull gemma3:4b).
+# macOS development profile. Gemma runs locally via Ollama; Gemma 4 e4b is the
+# preferred local model here (pull it with: ollama pull gemma4:e4b). If it is not
+# pulled, the agent automatically falls back to whatever Gemma the host has —
+# e.g. an existing gemma3:4b keeps working (see agents/local.py).
 
 agents:
   local:
-    model: "gemma3:4b"
+    model: "gemma4:e4b"

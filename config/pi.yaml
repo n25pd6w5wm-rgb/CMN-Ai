@@ -11,4 +11,6 @@ router:
 
 agents:
   local:
+    # Smallest tag the Pi can run; if a Gemma 4 is ever pulled on the Pi, the
+    # agent serves it automatically (newest generation wins — agents/local.py).
     model: "gemma3:1b"

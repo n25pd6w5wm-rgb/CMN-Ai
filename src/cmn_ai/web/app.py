@@ -30,7 +30,7 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-from cmn_ai.agents.base import Agent
+from cmn_ai.agents.base import Agent, HealthCheckedAgent
 from cmn_ai.budget.governor import BudgetGovernor
 from cmn_ai.budget.ledger import LedgerBackend
 from cmn_ai.budget.supabase_ledger import SupabaseLedger
@@ -417,6 +417,12 @@ def build_app(state: AppState) -> FastAPI:
 
     @app.get("/api/models")
     async def models() -> dict[str, Any]:
+        # Probe health-checked agents (TTL-cached, 2s timeout) before reporting:
+        # serverless hosts cold-start with the local agent pessimistically
+        # inactive, which would otherwise hide it from the model picker forever.
+        for agent in state.agents.values():
+            if isinstance(agent, HealthCheckedAgent):
+                await agent.refresh_health()
         return {
             "models": [
                 {
