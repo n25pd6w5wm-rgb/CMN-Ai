@@ -6,6 +6,7 @@ core idea: a free local model handles volume, paid APIs are used only on purpose
 
 from __future__ import annotations
 
+import contextlib
 import time
 from collections.abc import Callable
 
@@ -18,6 +19,9 @@ _FREE = CostPerMTok(input_eur=0.0, output_eur=0.0)
 _CAPABILITIES = frozenset({Capability.CHAT, Capability.CODE})
 _HEALTH_TTL_SECONDS = 30.0
 _HEALTH_TIMEOUT_SECONDS = 2.0
+# Newest Gemma generation first: a host that has pulled a Gemma 4 serves it in
+# preference to Gemma 3, without a config change or redeploy.
+_GEMMA_PREFERENCE = ("gemma4:", "gemma3:")
 
 
 class OllamaAgent:
@@ -34,6 +38,10 @@ class OllamaAgent:
         self.name = "local"
         self.host = host.rstrip("/")
         self.model = model
+        # The configured model is a preference, not a hard requirement: the host
+        # (Pi or Mac) decides what it can actually run, so _select_model() follows
+        # whatever Gemma generation is really pulled there.
+        self._configured_model = model
         self.capabilities = _CAPABILITIES
         self.cost_per_mtok = _FREE
         self.bucket = Bucket.GENERAL
@@ -64,6 +72,42 @@ class OllamaAgent:
             self._healthy = resp.status_code == 200
         except Exception:
             self._healthy = False
+            return
+        if self._healthy:
+            # A malformed tags body must not mark a reachable host unhealthy.
+            with contextlib.suppress(Exception):
+                self._select_model(resp.json())
+
+    def _select_model(self, payload: object) -> None:
+        """Pick the best model the host has actually pulled.
+
+        An explicitly configured non-Gemma model that is present always wins.
+        Otherwise the newest available Gemma generation is served (4 before 3),
+        keeping the configured tag within that generation when it exists and the
+        biggest tag when it does not — so the same config works whether the host
+        runs Gemma 3, Gemma 4, or both.
+        """
+        if not isinstance(payload, dict):
+            return
+        models = payload.get("models", [])
+        if not isinstance(models, list):
+            return
+        available = {str(m.get("name", "")) for m in models if isinstance(m, dict)}
+        available.discard("")
+        if not available:
+            return
+        configured = self._configured_model
+        if configured in available and not configured.startswith(_GEMMA_PREFERENCE):
+            self.model = configured
+            return
+        for generation in _GEMMA_PREFERENCE:
+            tags = sorted((m for m in available if m.startswith(generation)), reverse=True)
+            if not tags:
+                continue
+            self.model = configured if configured in tags else tags[0]
+            return
+        if configured in available:
+            self.model = configured
 
     async def run(self, task: Task, *, system: str | None = None) -> AgentResponse:
         messages = build_messages(task)

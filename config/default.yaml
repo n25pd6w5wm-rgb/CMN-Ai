@@ -24,6 +24,9 @@ storage:
 agents:
   local:
     enabled: true
+    # Fallback preference only: the agent serves whatever Gemma the Ollama host
+    # has actually pulled, newest generation first (gemma4 > gemma3) — see
+    # agents/local.py. gemma3:1b is the smallest tag the Pi can run.
     model: "gemma3:1b"
     bucket: general
   anthropic:

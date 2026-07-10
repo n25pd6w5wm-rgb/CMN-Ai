@@ -31,12 +31,19 @@ PRICING: dict[str, CostPerMTok] = {
     # Perplexity
     "sonar-pro": CostPerMTok(2.8, 13.8),
     "sonar": CostPerMTok(0.9, 0.9),
-    # Local (Ollama / Gemma) — always free
+    # Local (Ollama / Gemma) — always free; tags verified vs ollama.com/library, 2026-07
     "gemma3:1b": _FREE,
     "gemma3:4b": _FREE,
-    "gemma4:latest": _FREE,
+    "gemma4:e2b": _FREE,
+    "gemma4:e4b": _FREE,
+    "gemma4:latest": _FREE,  # = e4b
     "gemma4:31b": _FREE,
 }
+
+# The local agent serves whichever Gemma tag its Ollama host has pulled (see
+# agents/local.py), so every ollama-style gemma3/gemma4 tag is free by prefix
+# instead of being enumerated. Paid API ids never carry the "family:tag" colon.
+_FREE_LOCAL_PREFIXES = ("gemma3:", "gemma4:")
 
 
 def price_for(model: str) -> CostPerMTok:
@@ -45,4 +52,9 @@ def price_for(model: str) -> CostPerMTok:
     Failing loudly is intentional: an unpriced paid model must never silently bill
     at zero and slip past the budget governor.
     """
-    return PRICING[model]
+    try:
+        return PRICING[model]
+    except KeyError:
+        if model.startswith(_FREE_LOCAL_PREFIXES):
+            return _FREE
+        raise

@@ -116,6 +116,82 @@ async def test_health_result_cached_within_ttl() -> None:
     assert agent.active is True
 
 
+# ---------- dynamic model selection: prefer Gemma 4, fall back to Gemma 3 ----------
+
+
+def _tags(*names: str) -> httpx.Response:
+    return httpx.Response(200, json={"models": [{"name": n} for n in names]})
+
+
+@respx.mock
+async def test_health_check_upgrades_to_gemma4_when_pulled() -> None:
+    # Pulling a Gemma 4 on the host upgrades the agent without a config change;
+    # a Gemma-3-only host (the Pi today) keeps working untouched.
+    respx.get("http://localhost:11434/api/tags").mock(return_value=_tags("gemma3:1b", "gemma4:e2b"))
+    agent = OllamaAgent(host="http://localhost:11434", model="gemma3:1b")
+
+    await agent.refresh_health()
+
+    assert agent.active is True
+    assert agent.model == "gemma4:e2b"
+
+
+@respx.mock
+async def test_health_check_falls_back_to_gemma3_when_no_gemma4() -> None:
+    respx.get("http://localhost:11434/api/tags").mock(return_value=_tags("gemma3:1b"))
+    agent = OllamaAgent(host="http://localhost:11434", model="gemma4:e4b")
+
+    await agent.refresh_health()
+
+    assert agent.model == "gemma3:1b"
+
+
+@respx.mock
+async def test_health_check_keeps_configured_model_within_best_generation() -> None:
+    respx.get("http://localhost:11434/api/tags").mock(
+        return_value=_tags("gemma4:e2b", "gemma4:e4b")
+    )
+    agent = OllamaAgent(host="http://localhost:11434", model="gemma4:e2b")
+
+    await agent.refresh_health()
+
+    assert agent.model == "gemma4:e2b"
+
+
+@respx.mock
+async def test_health_check_picks_biggest_tag_when_configured_is_missing() -> None:
+    respx.get("http://localhost:11434/api/tags").mock(
+        return_value=_tags("gemma4:e2b", "gemma4:e4b")
+    )
+    agent = OllamaAgent(host="http://localhost:11434", model="gemma4:latest")
+
+    await agent.refresh_health()
+
+    assert agent.model == "gemma4:e4b"
+
+
+@respx.mock
+async def test_health_check_respects_non_gemma_model_that_is_present() -> None:
+    # An explicitly configured non-Gemma model is a deliberate choice — keep it.
+    respx.get("http://localhost:11434/api/tags").mock(return_value=_tags("qwen3:4b", "gemma4:e2b"))
+    agent = OllamaAgent(host="http://localhost:11434", model="qwen3:4b")
+
+    await agent.refresh_health()
+
+    assert agent.model == "qwen3:4b"
+
+
+@respx.mock
+async def test_health_check_keeps_configured_model_when_tags_are_empty() -> None:
+    respx.get("http://localhost:11434/api/tags").mock(return_value=httpx.Response(200, json={}))
+    agent = OllamaAgent(host="http://localhost:11434", model="gemma3:1b")
+
+    await agent.refresh_health()
+
+    assert agent.active is True
+    assert agent.model == "gemma3:1b"
+
+
 @respx.mock
 async def test_health_rechecked_after_ttl_expiry() -> None:
     route = respx.get("http://localhost:11434/api/tags").mock(

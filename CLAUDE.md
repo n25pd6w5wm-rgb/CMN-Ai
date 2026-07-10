@@ -67,6 +67,12 @@ coverage. New code lands with tests + all gates green.
   `budget/pricing.py`. **Adding/switching a model = one pricing entry + the config value.**
 - Use current models. Defaults: Claude coding/general → newest Sonnet, escalate → Opus;
   OpenAI → a cheap tier (`gpt-4o-mini`); local → a Pi-friendly Gemma tag.
+- **Local Gemma is self-selecting:** `agents.local.model` is only a preference — on
+  each health check the agent reads the Ollama host's `/api/tags` and serves the
+  newest pulled Gemma generation (gemma4 > gemma3), keeping the configured tag when
+  present (`agents/local.py`). All `gemma3:*`/`gemma4:*` tags price as free by
+  prefix in `pricing.py`. `/api/models` probes health before reporting, so the
+  model picker is correct even on serverless (Vercel) cold starts.
 - ⚠️ **Verify exact model IDs** against provider docs before setting them — a wrong ID
   fails at call time (now surfaced as an error event in the chat, not a silent hang).
   Entries marked `VERIFY` in `pricing.py` are best-guesses to confirm.

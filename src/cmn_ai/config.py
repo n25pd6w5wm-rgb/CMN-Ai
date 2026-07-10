@@ -65,7 +65,9 @@ class RouterSettings(BaseModel):
     """
 
     strategy: str = "rule"  # "rule" | "mlx" | "ollama"
-    optimizer_model: str | None = "gemma4:latest"
+    # Matches config/default.yaml; the optimizer runs on the Ollama host (the Pi),
+    # which can only fit the small Gemma 3 tag.
+    optimizer_model: str | None = "gemma3:1b"
     optimize: bool = False  # opt-in: rewrite substantial prompts via optimizer_model (local)
     synthesize: bool = False
     base_model: str = "mlx-community/Qwen2.5-1.5B-Instruct-4bit"
