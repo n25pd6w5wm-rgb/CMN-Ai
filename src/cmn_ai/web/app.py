@@ -55,25 +55,25 @@ _MAX_IMAGES = 4  # per request, keeps vision payloads bounded
 # operator's real details before commercial launch — a lawyer should review both.
 _IMPRESSUM_BODY = """
 <h2>Angaben gemäß § 5 DDG</h2>
-<p class="placeholder">[Vor- und Nachname bzw. Firma]<br>[Straße Hausnummer]<br>
-[PLZ Ort]<br>Deutschland</p>
+<p>Philipp Schmidt<br><span class="placeholder">[Straße Hausnummer]</span><br>
+46325 Borken<br>Deutschland</p>
 <h2>Kontakt</h2>
-<p class="placeholder">E-Mail: [kontakt@domain.tld]</p>
+<p>E-Mail: philippres@icloud.com</p>
 <h2>Verantwortlich für den Inhalt</h2>
-<p class="placeholder">[Name, Anschrift wie oben]</p>
+<p>Philipp Schmidt, Anschrift wie oben</p>
 <p><em>Hinweis: Dieses Impressum ist ein Entwurf und vor dem kommerziellen Start zu
-vervollständigen und juristisch zu prüfen.</em></p>
+vervollständigen (Straße/Hausnummer) und juristisch zu prüfen.</em></p>
 """
 
 _DATENSCHUTZ_BODY = """
 <p><em>Stand: Juli 2026 — Entwurf, vor dem kommerziellen Start juristisch prüfen lassen.</em></p>
 <h2>1. Verantwortlicher</h2>
-<p class="placeholder">[Name und Kontaktdaten wie im Impressum]</p>
+<p>Philipp Schmidt — Kontaktdaten siehe <a href="/impressum">Impressum</a>.</p>
 <h2>2. Welche Daten wir verarbeiten</h2>
 <ul>
 <li><strong>Konto:</strong> E-Mail-Adresse und Passwort-Hash, gespeichert bei unserem
-Auth-Dienstleister Supabase (EU-Region), zur Anmeldung und Kontoverwaltung
-(Art. 6 Abs. 1 lit. b DSGVO).</li>
+Auth-Dienstleister Supabase (Rechenzentrum in der EU: Irland, AWS eu-west-1), zur
+Anmeldung und Kontoverwaltung (Art. 6 Abs. 1 lit. b DSGVO).</li>
 <li><strong>Konversationen:</strong> Deine Chat-Nachrichten und die KI-Antworten werden
 deinem Konto zugeordnet gespeichert, damit du sie wieder öffnen kannst. Du kannst
 Konversationen jederzeit in der App löschen.</li>
@@ -101,9 +101,10 @@ Google Fonts, CDNs oder anderen Drittservern aufgebaut.</p>
 <p>Die App läuft bei Render (render.com) bzw. Vercel (vercel.com, für cmn-ai.com).
 Beim Aufruf fallen technisch notwendige Server-Logs an (IP-Adresse, Zeitpunkt,
 aufgerufene Seite), die zur Betriebssicherheit kurzzeitig gespeichert werden
-(Art. 6 Abs. 1 lit. f DSGVO). Konten und Konversationen liegen bei Supabase
-(EU-Region). Mit allen Hosting-Anbietern bestehen Auftragsverarbeitungsverträge
-(Art. 28 DSGVO) über deren Standard-Bedingungen.</p>
+(Art. 6 Abs. 1 lit. f DSGVO). Konten und Konversationen liegen bei Supabase im
+EU-Rechenzentrum (Irland). Mit den Hosting-Anbietern bestehen
+Auftragsverarbeitungsverträge (Art. 28 DSGVO); Vercel ist zusätzlich unter dem
+EU-US Data Privacy Framework zertifiziert.</p>
 <h2>5. Speicherdauer &amp; Löschung</h2>
 <p>Konversationen bleiben gespeichert, bis du sie in der App löschst oder dein Konto
 gelöscht wird. Zur Kontolöschung genügt eine formlose Nachricht an die im Impressum
