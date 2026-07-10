@@ -25,6 +25,7 @@ from cmn_ai.core import (
     Task,
     Usage,
 )
+from cmn_ai.doc_skills import detect_doc_skill, skill_text
 from cmn_ai.router.interface import Router
 from cmn_ai.storage.decisions import DecisionLog
 
@@ -139,16 +140,20 @@ SYSTEM_PROMPT = (
     "# Titel\n"
     "…full, polished Markdown content of the document — not a summary…\n"
     "```\n"
-    "Use the file extension the user wants: .pdf, .docx or .pptx (slides split on "
-    "## headings). Put your normal reply before or after the block. The system "
-    "turns the block into a real downloadable file automatically.\n"
+    "Use the file extension the user wants: .pdf, .docx, .pptx (slides split on "
+    "## headings) or .xlsx (each Markdown table becomes a sheet). Keynote and "
+    "Numbers users get .pptx / .xlsx — both open natively there. Put your normal "
+    "reply before or after the block. The system turns the block into a real "
+    "downloadable file automatically.\n"
     "\n"
     "Design: pick a visual theme that fits the document and add it as "
     'theme="…" on the fence (optional; a sensible default is used if you omit it). '
     "Themes: 'report' (formal, blue — business reports, analyses), 'modern' (teal, "
     "cover page — proposals, product docs), 'elegant' (restrained terracotta, cover "
     "page — essays, letters, editorial), 'deck' (indigo, cover slide — the best fit "
-    "for .pptx presentations). Choose the one whose tone matches the content.\n"
+    "for .pptx presentations), 'minimal' (black & white, editorial restraint — "
+    "technical docs, CVs), 'warm' (bronze/cream, cover page — personal, brand, "
+    "culture pieces). Choose the one whose tone matches the content.\n"
     "\n"
     "Document quality (important — these render to a real, professionally typeset file):\n"
     "- Open with a single '# Title', then organise the body under '##' / '###' "
@@ -163,6 +168,19 @@ SYSTEM_PROMPT = (
     "so the whole document is complete and self-contained.\n"
     "- Keep the document inside the single fenced block; don't split it."
 )
+
+
+def _system_for(task: Task) -> str:
+    """The system prompt for a task: base prompt + on-demand document skill.
+
+    Skills (see ``doc_skills``) are compact per-document-type instruction blocks —
+    appended only when the request looks like a document, so ordinary chat turns
+    never pay their token cost. Detection runs on the user's original wording.
+    """
+    skill = detect_doc_skill(task.prompt)
+    if skill:
+        return f"{SYSTEM_PROMPT}\n\n{skill_text(skill)}"
+    return SYSTEM_PROMPT
 
 
 class Orchestrator:
@@ -236,12 +254,13 @@ class Orchestrator:
             self._log(task.prompt, decision, None)
             return decision, None
 
+        system = _system_for(task)  # detect document skills on the original wording
         task = await self._router.optimize_prompt(task)
         candidates = dict(self._agents)
         while True:
             agent = self._agents[decision.agent]
             try:
-                response = await agent.run(task, system=SYSTEM_PROMPT)
+                response = await agent.run(task, system=system)
                 break
             except Exception:
                 candidates.pop(decision.agent, None)
@@ -295,9 +314,10 @@ class Orchestrator:
             self._log(task.prompt, decision, None)
             return decision, None
 
+        system = _system_for(task)  # detect document skills on the original wording
         task = await self._router.optimize_prompt(task)
         results = await asyncio.gather(
-            *(a.run(task, system=SYSTEM_PROMPT) for a in pool), return_exceptions=True
+            *(a.run(task, system=system) for a in pool), return_exceptions=True
         )
         drafts: list[AgentResponse] = [r for r in results if isinstance(r, AgentResponse)]
         if not drafts:
