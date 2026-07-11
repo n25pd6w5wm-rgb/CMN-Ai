@@ -1,7 +1,9 @@
 # cmn-ai web app — container image for hosting the frontend/orchestrator (e.g. Render).
 # The local model is NOT in here: it runs on the Raspberry Pi and is reached via
 # OLLAMA_HOST. This image serves the chat UI + API and routes to the Pi / paid APIs.
-FROM python:3.11-slim
+# Python 3.12 matches .python-version (which uv sync respects inside the container)
+# and Vercel's runtime, so every host runs the same interpreter.
+FROM python:3.12-slim
 
 ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
