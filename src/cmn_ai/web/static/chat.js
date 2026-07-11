@@ -309,16 +309,39 @@ async function sendMessage(text) {
   const decoder = new TextDecoder();
   let buffer = "";
   // One shared context for the whole stream: ctx.raw accumulates across deltas.
-  const ctx = { wrap, chip, bubble, raw: "" };
-  while (true) {
-    const { value, done } = await reader.read();
-    if (done) break;
-    buffer += decoder.decode(value, { stream: true });
-    const events = buffer.split("\n\n");
-    buffer = events.pop();
-    for (const block of events) handleEvent(block, ctx);
+  // ctx.finished flips on a terminal event (done/error/blocked) — if the stream
+  // ends without one, the server was cut off mid-answer (e.g. a serverless
+  // time limit) and we must say so instead of leaving the pulsing dots forever.
+  const ctx = { wrap, chip, bubble, raw: "", finished: false };
+  try {
+    while (true) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const events = buffer.split("\n\n");
+      buffer = events.pop();
+      for (const block of events) handleEvent(block, ctx);
+    }
+  } catch (e) {
+    // network dropped mid-stream — fall through to the incomplete-answer notice
   }
   bubble.classList.remove("cursor");
+  if (!ctx.finished) {
+    const notice =
+      "⚠️ Die Verbindung ist abgebrochen, bevor die Antwort fertig war " +
+      "(z. B. Zeitlimit des Servers). Bitte noch einmal versuchen — oder eine " +
+      "kürzere Frage stellen.";
+    if (ctx.raw) {
+      renderMarkdown(bubble, ctx.raw);
+      const p = document.createElement("p");
+      p.className = "msg-error";
+      p.textContent = notice;
+      bubble.appendChild(p);
+    } else {
+      bubble.classList.add("msg-error");
+      bubble.textContent = notice;
+    }
+  }
   loadBudget();
   loadAnalytics();
   loadConversations();
@@ -356,17 +379,22 @@ function handleEvent(block, ctx) {
   } else if (event === "file") {
     addFileCard(ctx.wrap, payload);
   } else if (event === "blocked") {
+    ctx.finished = true; // terminal: the budget box replaces the answer
     renderBlocked(ctx.wrap, ctx.bubble, payload);
   } else if (event === "error") {
+    ctx.finished = true; // terminal: the server reported the failure itself
     ctx.bubble.classList.remove("cursor");
     ctx.bubble.classList.add("msg-error");
     ctx.bubble.textContent = payload.message || "Etwas ist schiefgelaufen.";
-  } else if (event === "done" && !payload.blocked) {
-    finalizeChip(ctx.chip, payload);
-    if (ctx.raw) renderMarkdown(ctx.bubble, ctx.raw);
-    else if (ctx.bubble.querySelector && ctx.bubble.querySelector(".think-wait"))
-      ctx.bubble.textContent = ""; // clear the wait indicator if nothing streamed
-    addDownloadButton(ctx.wrap, ctx.bubble, ctx.raw);
+  } else if (event === "done") {
+    ctx.finished = true; // terminal: every server path ends with a done event
+    if (!payload.blocked) {
+      finalizeChip(ctx.chip, payload);
+      if (ctx.raw) renderMarkdown(ctx.bubble, ctx.raw);
+      else if (ctx.bubble.querySelector && ctx.bubble.querySelector(".think-wait"))
+        ctx.bubble.textContent = ""; // clear the wait indicator if nothing streamed
+      addDownloadButton(ctx.wrap, ctx.bubble, ctx.raw);
+    }
   }
 }
 
